@@ -9,7 +9,7 @@ public class VideoClassifierTests
     [InlineData("PT45S", 45)]
     [InlineData("", 0)]
     [InlineData(null, 0)]
-    public void ParseIsoDuration_ParsesCorrectly(string iso, int expectedSeconds)
+    public void ParseIsoDuration_ParsesCorrectly(string? iso, int expectedSeconds)
     {
         Assert.Equal(expectedSeconds, VideoClassifier.ParseIsoDuration(iso));
     }
