@@ -79,9 +79,14 @@ public class AuthService
                 ["refresh_token"] = refreshToken,
                 ["grant_type"] = "refresh_token",
             }));
-            if (!response.IsSuccessStatusCode) return null;
+            var body = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.LogError($"Silent token refresh rejected: {(int)response.StatusCode} {body}");
+                return null;
+            }
 
-            var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+            var json = JsonDocument.Parse(body).RootElement;
             return json.GetProperty("access_token").GetString();
         }
         catch (System.Security.Cryptography.CryptographicException ex)
