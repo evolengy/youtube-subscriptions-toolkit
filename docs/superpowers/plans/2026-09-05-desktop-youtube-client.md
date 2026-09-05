@@ -2684,6 +2684,7 @@ namespace YouTubeDesktopClient.Tray;
 
 public class TrayIconService : IDisposable
 {
+    private const string StartupValueName = "YouTubeDesktopClient";
     private readonly NotifyIcon _notifyIcon;
 
     public TrayIconService(Action onOpen, Action onRefreshNow, Action onExit)
@@ -2691,6 +2692,22 @@ public class TrayIconService : IDisposable
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open", null, (_, _) => onOpen());
         menu.Items.Add("Refresh now", null, (_, _) => onRefreshNow());
+
+        var startupItem = new ToolStripMenuItem("Start with Windows")
+        {
+            CheckOnClick = true,
+            Checked = StartupRegistration.IsEnabled(StartupValueName),
+        };
+        startupItem.Click += (_, _) =>
+        {
+            var executablePath = Environment.ProcessPath!;
+            if (startupItem.Checked)
+                StartupRegistration.Enable(StartupValueName, executablePath);
+            else
+                StartupRegistration.Disable(StartupValueName);
+        };
+        menu.Items.Add(startupItem);
+
         menu.Items.Add("Exit", null, (_, _) => onExit());
 
         _notifyIcon = new NotifyIcon
@@ -2706,6 +2723,8 @@ public class TrayIconService : IDisposable
     public void Dispose() => _notifyIcon.Dispose();
 }
 ```
+
+Note: `StartupRegistration.IsEnabled`/`Enable`/`Disable` take a `valueName` first argument per Task 13 Step 3's signatures — `StartupValueName` here supplies it, matching the pattern the `StartupRegistrationTests` already exercise with their own distinct test value name.
 
 - [ ] **Step 7: Wire everything together in App.xaml.cs**
 
