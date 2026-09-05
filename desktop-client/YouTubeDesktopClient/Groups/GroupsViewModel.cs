@@ -11,6 +11,13 @@ public class GroupsViewModel
 
     public Dictionary<string, GroupData> GetGroups() => _store.GetGroups();
 
+    /// <summary>
+    /// Every known subscribed channel, keyed by channel id — what the panel
+    /// offers as group membership candidates. Routed through the view model so
+    /// the panel doesn't need a second dependency on the store.
+    /// </summary>
+    public Dictionary<string, SubscriptionCacheEntry> GetAllChannels() => _store.GetSubscriptionsCache();
+
     public string CreateGroup(string name)
     {
         var groups = _store.GetGroups();
