@@ -3,18 +3,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <DockPanel Margin="8">
         <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,8">
-            <ComboBox x:Name="TypeFilterBox" Width="100" SelectionChanged="Filters_Changed">
+            <ComboBox x:Name="TypeFilterBox" Width="100">
                 <ComboBoxItem Content="all" IsSelected="True"/>
                 <ComboBoxItem Content="video"/>
                 <ComboBoxItem Content="short"/>
                 <ComboBoxItem Content="live"/>
             </ComboBox>
-            <ComboBox x:Name="SortByBox" Width="100" Margin="8,0,0,0" SelectionChanged="Filters_Changed">
+            <ComboBox x:Name="SortByBox" Width="100" Margin="8,0,0,0">
                 <ComboBoxItem Content="date" IsSelected="True"/>
                 <ComboBoxItem Content="duration"/>
                 <ComboBoxItem Content="views"/>
             </ComboBox>
-            <CheckBox x:Name="HideWatchedBox" Content="Hide watched" Margin="8,0,0,0" Checked="Filters_Changed" Unchecked="Filters_Changed"/>
+            <CheckBox x:Name="HideWatchedBox" Content="Hide watched" Margin="8,0,0,0"/>
         </StackPanel>
         <ItemsControl x:Name="VideoGrid">
             <ItemsControl.ItemsPanel>

@@ -16,9 +16,20 @@ public partial class FeedPanel : UserControl
 
     public FeedPanel(FeedViewModel viewModel, Action<string> onVideoClicked)
     {
-        InitializeComponent();
         _viewModel = viewModel;
         _onVideoClicked = onVideoClicked;
+        InitializeComponent();
+
+        // Wired here rather than in XAML: the ComboBoxItems' IsSelected="True"
+        // fires SelectionChanged synchronously while InitializeComponent() is
+        // still parsing the tree, before sibling controls (e.g. SortByBox
+        // while TypeFilterBox is being built) exist yet. Attaching after
+        // InitializeComponent() guarantees every named control is live first.
+        TypeFilterBox.SelectionChanged += Filters_Changed;
+        SortByBox.SelectionChanged += Filters_Changed;
+        HideWatchedBox.Checked += Filters_Changed;
+        HideWatchedBox.Unchecked += Filters_Changed;
+
         Refresh();
     }
 
