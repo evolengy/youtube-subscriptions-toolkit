@@ -16,7 +16,7 @@ namespace YouTubeDesktopClient;
 
 public partial class App : Application
 {
-    private const string OAuthClientId = "PASTE_DESKTOP_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com";
+    private const string OAuthClientId = "REPLACE_WITH_YOUR_OAUTH_CLIENT_ID.apps.googleusercontent.com";
     private static readonly TimeSpan SyncInterval = TimeSpan.FromHours(3);
 
     private TrayIconService? _tray;
