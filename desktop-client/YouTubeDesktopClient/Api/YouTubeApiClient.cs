@@ -142,16 +142,29 @@ public class YouTubeApiClient : IYouTubeApiClient
                 var snippet = item.GetProperty("snippet");
                 var thumbnails = snippet.GetProperty("thumbnails");
                 var statistics = item.TryGetProperty("statistics", out var s) ? s : default;
+                // contentDetails.duration and snippet.liveBroadcastContent can
+                // be absent for some video states (e.g. an in-progress or
+                // upcoming live stream/premiere) — a real account hit this
+                // and crashed the background sync process before these were
+                // made defensive.
+                var duration = item.TryGetProperty("contentDetails", out var contentDetails)
+                    && contentDetails.TryGetProperty("duration", out var durationProp)
+                    ? durationProp.GetString() ?? "PT0S"
+                    : "PT0S";
+                var liveBroadcastContent = snippet.TryGetProperty("liveBroadcastContent", out var liveProp)
+                    ? liveProp.GetString() ?? "none"
+                    : "none";
+
                 results.Add(new VideoInfo(
                     item.GetProperty("id").GetString()!,
                     snippet.GetProperty("channelId").GetString()!,
                     snippet.GetProperty("title").GetString()!,
                     thumbnails.TryGetProperty("medium", out var med) ? med.GetProperty("url").GetString() : null,
                     snippet.GetProperty("publishedAt").GetDateTimeOffset(),
-                    item.GetProperty("contentDetails").GetProperty("duration").GetString()!,
+                    duration,
                     statistics.ValueKind == JsonValueKind.Object && statistics.TryGetProperty("viewCount", out var vc)
                         ? long.Parse(vc.GetString()!) : 0,
-                    snippet.GetProperty("liveBroadcastContent").GetString()!));
+                    liveBroadcastContent));
             }
         }
         return results;

@@ -12,7 +12,7 @@ public static class Logger
         try
         {
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(LogPath)!);
-            var line = $"[{DateTimeOffset.Now:u}] {message}{(ex != null ? $" — {ex.GetType().Name}: {ex.Message}" : "")}{Environment.NewLine}";
+            var line = $"[{DateTimeOffset.Now:u}] {message}{(ex != null ? $" — {ex.GetType().Name}: {ex.Message}{Environment.NewLine}{ex.StackTrace}" : "")}{Environment.NewLine}";
             System.IO.File.AppendAllText(LogPath, line);
         }
         catch
