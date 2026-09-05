@@ -13,12 +13,19 @@ public class AuthService
     private const string Scope = "https://www.googleapis.com/auth/youtube";
 
     private readonly string _clientId;
+    // Google's token endpoint requires client_secret even for a "Desktop
+    // app" (installed application) OAuth client using PKCE, despite such
+    // clients being public/secret-less per plain RFC 8252. Google's own
+    // docs for installed apps say this value "is not treated as a secret"
+    // and is fine to embed in source, unlike a Web application secret.
+    private readonly string _clientSecret;
     private readonly TokenStore _tokenStore;
     private readonly HttpClient _http = new();
 
-    public AuthService(string clientId, TokenStore tokenStore)
+    public AuthService(string clientId, string clientSecret, TokenStore tokenStore)
     {
         _clientId = clientId;
+        _clientSecret = clientSecret;
         _tokenStore = tokenStore;
     }
 
@@ -68,6 +75,7 @@ public class AuthService
             var response = await _http.PostAsync(TokenEndpoint, new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["client_id"] = _clientId,
+                ["client_secret"] = _clientSecret,
                 ["refresh_token"] = refreshToken,
                 ["grant_type"] = "refresh_token",
             }));
@@ -104,6 +112,7 @@ public class AuthService
         var response = await _http.PostAsync(TokenEndpoint, new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["client_id"] = _clientId,
+            ["client_secret"] = _clientSecret,
             ["code"] = code,
             ["code_verifier"] = verifier,
             ["redirect_uri"] = redirectUri,

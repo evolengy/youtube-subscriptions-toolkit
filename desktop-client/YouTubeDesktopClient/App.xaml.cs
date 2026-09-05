@@ -17,6 +17,10 @@ namespace YouTubeDesktopClient;
 public partial class App : Application
 {
     private const string OAuthClientId = "REPLACE_WITH_YOUR_OAUTH_CLIENT_ID.apps.googleusercontent.com";
+    // Google requires this even for a "Desktop app" client; per Google's own
+    // docs it "is not treated as a secret" for installed apps. Paste the
+    // value shown for the Desktop-type client in Google Cloud Console.
+    private const string OAuthClientSecret = "PASTE_DESKTOP_OAUTH_CLIENT_SECRET_HERE";
     private static readonly TimeSpan SyncInterval = TimeSpan.FromHours(3);
 
     private TrayIconService? _tray;
@@ -34,7 +38,7 @@ public partial class App : Application
             Path.Combine(appDataDir, "settings.json"),
             Path.Combine(appDataDir, "cache.json"));
         var tokenStore = new TokenStore(Path.Combine(appDataDir, "token.bin"));
-        var authService = new AuthService(OAuthClientId, tokenStore);
+        var authService = new AuthService(OAuthClientId, OAuthClientSecret, tokenStore);
         var apiClient = new YouTubeApiClient(new HttpClient());
 
         Func<Task<string?>> getAccessToken = () => authService.GetAccessTokenSilentAsync();
