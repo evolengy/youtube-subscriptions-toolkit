@@ -2288,6 +2288,18 @@ public partial class MainWindow : Window
             };
             MainTabs.Items.Add(tabItem);
         }
+
+        // ChannelManagementViewModel/Panel isn't part of TabsViewModel's
+        // Feed/Home/video-tab registry (that class exists purely for the
+        // in-place-vs-new-tab video navigation decision from Task 11) — it
+        // gets a fourth pinned tab added directly here instead, so the
+        // dead-channel/unsubscribe feature is actually reachable.
+        MainTabs.Items.Add(new TabItem
+        {
+            Header = "Channels",
+            Tag = "channels",
+            Content = new Views.ChannelManagementPanel(channelViewModel),
+        });
     }
 
     private WebView2 GetOrCreateWebView(string tabId, string url)
