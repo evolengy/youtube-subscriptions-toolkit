@@ -72,8 +72,13 @@ public class AuthService
             var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
             return json.GetProperty("access_token").GetString();
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or KeyNotFoundException)
         {
+            // A malformed 2xx response (bad JSON, missing access_token) must
+            // also come back as "not signed in" rather than throw — this
+            // runs inside BackgroundSyncService's bare Timer callback (Task
+            // 8), which has no try/catch of its own, so an uncaught
+            // exception here would crash the whole tray-resident process.
             return null;
         }
     }
