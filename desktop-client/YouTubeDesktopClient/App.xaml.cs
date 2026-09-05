@@ -20,7 +20,7 @@ public partial class App : Application
     // Google requires this even for a "Desktop app" client; per Google's own
     // docs it "is not treated as a secret" for installed apps. Paste the
     // value shown for the Desktop-type client in Google Cloud Console.
-    private const string OAuthClientSecret = "PASTE_DESKTOP_OAUTH_CLIENT_SECRET_HERE";
+    private const string OAuthClientSecret = "REPLACE_WITH_YOUR_OAUTH_CLIENT_SECRET";
     private static readonly TimeSpan SyncInterval = TimeSpan.FromHours(3);
 
     private TrayIconService? _tray;
@@ -93,8 +93,17 @@ public partial class App : Application
         try
         {
             var token = await authService.GetAccessTokenSilentAsync();
-            if (token == null)
+            var justSignedIn = token == null;
+            if (justSignedIn)
                 await authService.SignInInteractiveAsync();
+
+            // The background timer's first tick already fired (or is about
+            // to, at TimeSpan.Zero) — but on a first-ever run it fires before
+            // the interactive browser flow above finishes, so it sees "no
+            // token" and does nothing. Without this, a fresh sign-in leaves
+            // the feed empty until the 3-hour timer or a manual tray refresh.
+            if (justSignedIn)
+                await _sync!.RunOnceAsync();
         }
         catch (Exception ex)
         {
