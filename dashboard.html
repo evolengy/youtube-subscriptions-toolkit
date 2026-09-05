@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Subscriptions Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Subscriptions Dashboard</h1>
+    <div class="auth-area">
+      <span id="syncStatus"></span>
+      <button id="signInBtn">Sign in with Google</button>
+      <button id="signOutBtn" hidden>Sign out</button>
+      <button id="refreshBtn" hidden>Refresh now</button>
+    </div>
+  </header>
+
+  <main id="app" hidden>
+    <aside class="groups-panel">
+      <h2>Groups</h2>
+      <ul id="groupList"></ul>
+      <form id="newGroupForm">
+        <input id="newGroupName" placeholder="New group name" required />
+        <button type="submit">Add group</button>
+      </form>
+
+      <h2>Assign channels</h2>
+      <div id="channelAssignList" class="channel-assign-list"></div>
+    </aside>
+
+    <section class="feed-panel">
+      <div class="feed-controls">
+        <label>Type:
+          <select id="filterType">
+            <option value="all">All</option>
+            <option value="video">Video</option>
+            <option value="short">Short</option>
+            <option value="live">Live</option>
+          </select>
+        </label>
+        <label>Sort:
+          <select id="sortBy">
+            <option value="date">Newest</option>
+            <option value="duration">Duration</option>
+            <option value="views">Most viewed</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="hideWatched" /> Hide watched</label>
+      </div>
+      <div id="feed" class="feed"></div>
+    </section>
+
+    <section class="channels-panel">
+      <h2>Channel management</h2>
+      <div id="deadChannels"></div>
+    </section>
+  </main>
+
+  <script src="dashboard.js" type="module"></script>
+</body>
+</html>

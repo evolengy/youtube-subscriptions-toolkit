@@ -1,0 +1,103 @@
+.yst-sidebar-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.yst-sidebar-title {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 24px 4px;
+  color: var(--yt-spec-text-secondary, #aaa);
+}
+.yst-group-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 24px;
+  cursor: pointer;
+  border-radius: 0 20px 20px 0;
+  font-size: 14px;
+  color: var(--yt-spec-text-primary, #fff);
+}
+.yst-group-row:hover,
+.yst-group-row.active {
+  background: rgba(255, 255, 255, 0.1);
+}
+.yst-group-row .count {
+  color: var(--yt-spec-text-secondary, #aaa);
+  font-size: 12px;
+}
+.yst-manage-link {
+  padding: 8px 24px;
+  font-size: 13px;
+  color: var(--yt-spec-call-to-action, #3ea6ff);
+  cursor: pointer;
+}
+
+.yst-overlay {
+  position: fixed;
+  inset: 56px 0 0 0;
+  background: var(--yt-spec-base-background, #0f0f0f);
+  z-index: 2200;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+.yst-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.yst-overlay-header h2 {
+  font-size: 18px;
+  margin: 0;
+  flex: 1;
+  color: var(--yt-spec-text-primary, #fff);
+}
+.yst-overlay-header label {
+  font-size: 13px;
+  color: var(--yt-spec-text-primary, #fff);
+}
+.yst-overlay-header select {
+  font-size: 13px;
+  color: var(--yt-spec-text-primary, #fff);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+.yst-overlay-header select option {
+  color: #000;
+}
+.yst-close-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--yt-spec-text-primary, #fff);
+  border-radius: 18px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.yst-feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.yst-video-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.yst-video-card.watched { opacity: 0.45; }
+.yst-video-card img { width: 100%; display: block; }
+.yst-video-card .info { padding: 8px; font-size: 13px; color: var(--yt-spec-text-primary, #fff); }
+.yst-video-card .meta { color: var(--yt-spec-text-secondary, #aaa); font-size: 12px; margin: 4px 0; }
+.yst-video-card button {
+  font-size: 12px;
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--yt-spec-text-primary, #fff);
+  border-radius: 12px;
+  cursor: pointer;
+}
