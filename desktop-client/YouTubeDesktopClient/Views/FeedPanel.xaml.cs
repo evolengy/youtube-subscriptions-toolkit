@@ -10,6 +10,15 @@ namespace YouTubeDesktopClient.Views;
 
 public partial class FeedPanel : UserControl
 {
+    // ItemsControl+WrapPanel doesn't virtualize (every card is a real,
+    // permanently-realized WPF element with its own Image), so rendering
+    // this many at once is what makes every click that triggers Refresh()
+    // freeze the UI for seconds on an account with hundreds of channels —
+    // observed directly with 151 channels / 2259 total cached videos. A
+    // cap keeps a Refresh() cheap regardless of subscription count; a
+    // proper fix (real virtualization or paging) is a larger follow-up.
+    private const int MaxVisibleItems = 150;
+
     private readonly FeedViewModel _viewModel;
     private readonly Action<string> _onVideoClicked;
     private string? _activeGroupId;
@@ -56,7 +65,7 @@ public partial class FeedPanel : UserControl
     public void Refresh()
     {
         VideoGrid.Items.Clear();
-        foreach (var item in _viewModel.GetVisibleItems(_activeGroupId))
+        foreach (var item in _viewModel.GetVisibleItems(_activeGroupId).Take(MaxVisibleItems))
         {
             var card = new StackPanel { Width = 220, Margin = new Thickness(4) };
 
@@ -106,7 +115,15 @@ public partial class FeedPanel : UserControl
             // A remote BitmapImage downloads asynchronously and reports its own
             // failures, so only a malformed URL can throw here — but a bad URL
             // in the cache must not take out the whole feed render.
-            return new BitmapImage(new Uri(url));
+            // DecodePixelWidth decodes straight to display size instead of the
+            // source's full resolution — cheap on its own, but the difference
+            // adds up fast once a Refresh() renders 100+ cards at once.
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.UriSource = new Uri(url);
+            bitmap.DecodePixelWidth = 212;
+            bitmap.EndInit();
+            return bitmap;
         }
         catch (Exception ex) when (ex is UriFormatException or NotSupportedException)
         {
