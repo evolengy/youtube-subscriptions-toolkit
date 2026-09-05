@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using YouTubeDesktopClient.Logging;
 using YouTubeDesktopClient.Storage.Models;
 
 namespace YouTubeDesktopClient.Storage;
@@ -14,6 +15,12 @@ public class SubscriptionStore
     private readonly string _settingsPath;
     private readonly string _cachePath;
 
+    // The background sync thread writes while the UI thread reads (the feed
+    // and channel panels refresh on SyncCompleted), so every read-modify-write
+    // pair has to be serialized. Monitor is reentrant, which is what lets the
+    // public methods lock even though the private helpers lock too.
+    private readonly object _lock = new();
+
     public SubscriptionStore(string settingsPath, string cachePath)
     {
         _settingsPath = settingsPath;
@@ -22,65 +29,139 @@ public class SubscriptionStore
         Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
     }
 
-    private SettingsFile ReadSettings() =>
-        File.Exists(_settingsPath)
-            ? JsonSerializer.Deserialize<SettingsFile>(File.ReadAllText(_settingsPath))!
-            : new SettingsFile(new(), new());
+    /// <summary>
+    /// Reads and deserializes <paramref name="path"/>, falling back to
+    /// <paramref name="makeDefault"/> when the file is missing or unparseable.
+    /// A half-written or truncated file (crash, power loss) would otherwise
+    /// throw on every subsequent launch; the full history is re-fetchable from
+    /// the API by design, so treating it as empty is the recoverable choice.
+    /// </summary>
+    private static T ReadJsonFile<T>(string path, Func<T> makeDefault)
+    {
+        if (!File.Exists(path)) return makeDefault();
+        try
+        {
+            return JsonSerializer.Deserialize<T>(File.ReadAllText(path)) ?? makeDefault();
+        }
+        catch (JsonException ex)
+        {
+            Logger.LogError($"Corrupt JSON in {path}; treating it as empty", ex);
+            return makeDefault();
+        }
+    }
 
-    private void WriteSettings(SettingsFile settings) =>
-        File.WriteAllText(_settingsPath, JsonSerializer.Serialize(settings, JsonOptions));
+    /// <summary>
+    /// Writes via a sibling temp file plus an atomic replace, so an interrupted
+    /// write leaves the previous good file intact instead of a truncated one.
+    /// </summary>
+    private static void WriteJsonFile<T>(string path, T value)
+    {
+        var tempPath = path + ".tmp";
+        File.WriteAllText(tempPath, JsonSerializer.Serialize(value, JsonOptions));
+        File.Move(tempPath, path, overwrite: true);
+    }
 
-    private CacheFile ReadCache() =>
-        File.Exists(_cachePath)
-            ? JsonSerializer.Deserialize<CacheFile>(File.ReadAllText(_cachePath))!
-            : new CacheFile(new(), new(), null);
+    private SettingsFile ReadSettings()
+    {
+        lock (_lock)
+            return ReadJsonFile(_settingsPath, () => new SettingsFile(new(), new()));
+    }
 
-    private void WriteCache(CacheFile cache) =>
-        File.WriteAllText(_cachePath, JsonSerializer.Serialize(cache, JsonOptions));
+    private void WriteSettings(SettingsFile settings)
+    {
+        lock (_lock)
+            WriteJsonFile(_settingsPath, settings);
+    }
 
-    public Dictionary<string, GroupData> GetGroups() => ReadSettings().Groups;
+    private CacheFile ReadCache()
+    {
+        lock (_lock)
+            return ReadJsonFile(_cachePath, () => new CacheFile(new(), new(), null));
+    }
+
+    private void WriteCache(CacheFile cache)
+    {
+        lock (_lock)
+            WriteJsonFile(_cachePath, cache);
+    }
+
+    public Dictionary<string, GroupData> GetGroups()
+    {
+        lock (_lock)
+            return ReadSettings().Groups;
+    }
 
     public void SaveGroups(Dictionary<string, GroupData> groups)
     {
-        var settings = ReadSettings();
-        WriteSettings(settings with { Groups = groups });
+        lock (_lock)
+        {
+            var settings = ReadSettings();
+            WriteSettings(settings with { Groups = groups });
+        }
     }
 
-    public HashSet<string> GetWatchedVideoIds() => new(ReadSettings().WatchedVideoIds);
+    public HashSet<string> GetWatchedVideoIds()
+    {
+        lock (_lock)
+            return new(ReadSettings().WatchedVideoIds);
+    }
 
     public void MarkVideoWatched(string videoId)
     {
-        var settings = ReadSettings();
-        var ids = new List<string>(settings.WatchedVideoIds);
-        ids.Remove(videoId);
-        ids.Add(videoId);
-        if (ids.Count > MaxWatchedIds)
-            ids = ids.GetRange(ids.Count - MaxWatchedIds, MaxWatchedIds);
-        WriteSettings(settings with { WatchedVideoIds = ids });
+        lock (_lock)
+        {
+            var settings = ReadSettings();
+            var ids = new List<string>(settings.WatchedVideoIds);
+            ids.Remove(videoId);
+            ids.Add(videoId);
+            if (ids.Count > MaxWatchedIds)
+                ids = ids.GetRange(ids.Count - MaxWatchedIds, MaxWatchedIds);
+            WriteSettings(settings with { WatchedVideoIds = ids });
+        }
     }
 
-    public Dictionary<string, SubscriptionCacheEntry> GetSubscriptionsCache() =>
-        ReadCache().SubscriptionsCache;
+    public Dictionary<string, SubscriptionCacheEntry> GetSubscriptionsCache()
+    {
+        lock (_lock)
+            return ReadCache().SubscriptionsCache;
+    }
 
     public void SaveSubscriptionsCache(Dictionary<string, SubscriptionCacheEntry> cache)
     {
-        var current = ReadCache();
-        WriteCache(current with { SubscriptionsCache = cache });
+        lock (_lock)
+        {
+            var current = ReadCache();
+            WriteCache(current with { SubscriptionsCache = cache });
+        }
     }
 
-    public Dictionary<string, List<VideoInfo>> GetVideosCache() => ReadCache().VideosCache;
+    public Dictionary<string, List<VideoInfo>> GetVideosCache()
+    {
+        lock (_lock)
+            return ReadCache().VideosCache;
+    }
 
     public void SaveVideosCache(Dictionary<string, List<VideoInfo>> cache)
     {
-        var current = ReadCache();
-        WriteCache(current with { VideosCache = cache });
+        lock (_lock)
+        {
+            var current = ReadCache();
+            WriteCache(current with { VideosCache = cache });
+        }
     }
 
-    public DateTimeOffset? GetLastSyncedAt() => ReadCache().LastSyncedAt;
+    public DateTimeOffset? GetLastSyncedAt()
+    {
+        lock (_lock)
+            return ReadCache().LastSyncedAt;
+    }
 
     public void SetLastSyncedAt(DateTimeOffset timestamp)
     {
-        var current = ReadCache();
-        WriteCache(current with { LastSyncedAt = timestamp });
+        lock (_lock)
+        {
+            var current = ReadCache();
+            WriteCache(current with { LastSyncedAt = timestamp });
+        }
     }
 }

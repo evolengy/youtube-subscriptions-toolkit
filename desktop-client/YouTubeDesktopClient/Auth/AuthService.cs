@@ -2,6 +2,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using YouTubeDesktopClient.Logging;
 
 namespace YouTubeDesktopClient.Auth;
 
@@ -56,11 +57,14 @@ public class AuthService
 
     public async Task<string?> GetAccessTokenSilentAsync()
     {
-        var refreshToken = _tokenStore.LoadRefreshToken();
-        if (refreshToken == null) return null;
-
         try
         {
+            // LoadRefreshToken is inside the try because DPAPI is user+machine
+            // scoped: a token file copied from another machine/profile, or one
+            // truncated by a crash, throws CryptographicException here.
+            var refreshToken = _tokenStore.LoadRefreshToken();
+            if (refreshToken == null) return null;
+
             var response = await _http.PostAsync(TokenEndpoint, new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["client_id"] = _clientId,
@@ -72,13 +76,22 @@ public class AuthService
             var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
             return json.GetProperty("access_token").GetString();
         }
+        catch (System.Security.Cryptography.CryptographicException ex)
+        {
+            // An undecryptable token file will never become decryptable, so
+            // drop it rather than failing this way on every future sync tick.
+            Logger.LogError("Stored refresh token could not be decrypted; clearing it", ex);
+            _tokenStore.Clear();
+            return null;
+        }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or KeyNotFoundException)
         {
             // A malformed 2xx response (bad JSON, missing access_token) must
             // also come back as "not signed in" rather than throw — this
-            // runs inside BackgroundSyncService's bare Timer callback (Task
-            // 8), which has no try/catch of its own, so an uncaught
-            // exception here would crash the whole tray-resident process.
+            // runs inside BackgroundSyncService's Timer callback (Task 8),
+            // and while that callback now catches, returning null here keeps
+            // "token unavailable" a normal outcome rather than an error.
+            Logger.LogError("Silent token refresh failed", ex);
             return null;
         }
     }

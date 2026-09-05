@@ -154,6 +154,52 @@ public class YouTubeApiClientTests
     }
 
     [Fact]
+    public async Task FetchAllSubscriptionsAsync_ThrowsYouTubeApiException_OnErrorStatus()
+    {
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        {
+            Content = new StringContent("""{ "error": { "message": "Invalid Credentials" } }"""),
+        });
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        var ex = await Assert.ThrowsAsync<YouTubeApiException>(
+            () => client.FetchAllSubscriptionsAsync("token"));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, ex.StatusCode);
+        Assert.Contains("Invalid Credentials", ex.ResponseBody);
+    }
+
+    [Fact]
+    public async Task FetchVideosDetailsAsync_ThrowsYouTubeApiException_OnHtmlErrorPage()
+    {
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+        {
+            Content = new StringContent("<html><body>503</body></html>", Encoding.UTF8, "text/html"),
+        });
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        var ex = await Assert.ThrowsAsync<YouTubeApiException>(
+            () => client.FetchVideosDetailsAsync("token", new List<string> { "v1" }));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task FetchRecentUploadIdsAsync_ThrowsYouTubeApiException_OnQuotaExceeded()
+    {
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("""{ "error": { "message": "quotaExceeded" } }"""),
+        });
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        var ex = await Assert.ThrowsAsync<YouTubeApiException>(
+            () => client.FetchRecentUploadIdsAsync("token", "UU1", previousEtag: null));
+
+        Assert.Equal(HttpStatusCode.Forbidden, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task UnsubscribeAsync_SendsDeleteWithSubscriptionId()
     {
         var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));

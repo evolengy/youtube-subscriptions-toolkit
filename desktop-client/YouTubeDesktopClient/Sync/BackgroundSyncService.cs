@@ -1,4 +1,5 @@
 using YouTubeDesktopClient.Api;
+using YouTubeDesktopClient.Logging;
 using YouTubeDesktopClient.Storage;
 using YouTubeDesktopClient.Storage.Models;
 
@@ -20,9 +21,30 @@ public class BackgroundSyncService
         _getAccessToken = getAccessToken;
     }
 
+    /// <summary>
+    /// Raised on the timer's threadpool thread after a sync run has written
+    /// fresh data to the store. Subscribers that touch WPF UI MUST marshal to
+    /// the UI thread themselves (e.g. via <c>Dispatcher.Invoke</c>).
+    /// </summary>
+    public event Action? SyncCompleted;
+
     public void Start(TimeSpan interval)
     {
-        _timer = new Timer(_ => RunOnceAsync().GetAwaiter().GetResult(), null, TimeSpan.Zero, interval);
+        // An unhandled exception on a threadpool thread is fatal to the whole
+        // process in modern .NET, and every routine failure mode here (expired
+        // token, quota exhaustion, network drop) surfaces as an exception — so
+        // the callback body must never let one escape.
+        _timer = new Timer(_ =>
+        {
+            try
+            {
+                RunOnceAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("Background sync failed", ex);
+            }
+        }, null, TimeSpan.Zero, interval);
     }
 
     public void Stop() => _timer?.Dispose();
@@ -73,5 +95,7 @@ public class BackgroundSyncService
         _store.SaveSubscriptionsCache(subscriptionsCache);
         _store.SaveVideosCache(videosCache);
         _store.SetLastSyncedAt(DateTimeOffset.UtcNow);
+
+        SyncCompleted?.Invoke();
     }
 }

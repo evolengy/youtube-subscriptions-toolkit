@@ -24,6 +24,19 @@ public class YouTubeApiClient : IYouTubeApiClient
         return request;
     }
 
+    /// <summary>
+    /// Reads a read-path response body, converting any non-success status into
+    /// a <see cref="YouTubeApiException"/> instead of letting the error payload
+    /// (a Google error object, or an HTML page) blow up inside JSON parsing.
+    /// </summary>
+    private static async Task<JsonElement> ReadJsonRootAsync(HttpResponseMessage response)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode)
+            throw new YouTubeApiException(response.StatusCode, body);
+        return JsonDocument.Parse(body).RootElement;
+    }
+
     public async Task<List<SubscriptionEntry>> FetchAllSubscriptionsAsync(string accessToken)
     {
         var results = new List<SubscriptionEntry>();
@@ -38,8 +51,7 @@ public class YouTubeApiClient : IYouTubeApiClient
                 ["pageToken"] = pageToken,
             });
             using var response = await _http.SendAsync(request);
-            var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            var root = json.RootElement;
+            var root = await ReadJsonRootAsync(response);
 
             foreach (var item in root.GetProperty("items").EnumerateArray())
             {
@@ -71,7 +83,7 @@ public class YouTubeApiClient : IYouTubeApiClient
                 ["maxResults"] = "50",
             });
             using var response = await _http.SendAsync(request);
-            var root = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+            var root = await ReadJsonRootAsync(response);
 
             foreach (var item in root.GetProperty("items").EnumerateArray())
             {
@@ -103,7 +115,7 @@ public class YouTubeApiClient : IYouTubeApiClient
         if (response.StatusCode == HttpStatusCode.NotModified)
             return new PlaylistItemsResult(new List<string>(), previousEtag, NotModified: true);
 
-        var root = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        var root = await ReadJsonRootAsync(response);
         var videoIds = root.GetProperty("items").EnumerateArray()
             .Select(item => item.GetProperty("contentDetails").GetProperty("videoId").GetString()!)
             .ToList();
@@ -123,7 +135,7 @@ public class YouTubeApiClient : IYouTubeApiClient
                 ["maxResults"] = "50",
             });
             using var response = await _http.SendAsync(request);
-            var root = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+            var root = await ReadJsonRootAsync(response);
 
             foreach (var item in root.GetProperty("items").EnumerateArray())
             {

@@ -92,4 +92,43 @@ public class SubscriptionStoreTests : IDisposable
     {
         Assert.Null(_store.GetLastSyncedAt());
     }
+
+    [Fact]
+    public void GetGroups_ReturnsEmpty_WhenSettingsFileIsCorrupt()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "settings.json"), "{ this is not json");
+
+        Assert.Empty(_store.GetGroups());
+    }
+
+    [Fact]
+    public void GetSubscriptionsCache_ReturnsEmpty_WhenCacheFileIsCorrupt()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "cache.json"), "{ truncated");
+
+        Assert.Empty(_store.GetSubscriptionsCache());
+        Assert.Null(_store.GetLastSyncedAt());
+    }
+
+    [Fact]
+    public void Write_OverCorruptFile_RecoversAndRoundTrips()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "settings.json"), "not json at all");
+
+        _store.SaveGroups(new Dictionary<string, GroupData>
+        {
+            ["g1"] = new GroupData("Recovered", new List<string>()),
+        });
+
+        Assert.Equal("Recovered", _store.GetGroups()["g1"].Name);
+    }
+
+    [Fact]
+    public void Write_LeavesNoTempFileBehind()
+    {
+        _store.SaveGroups(new Dictionary<string, GroupData>());
+        _store.SetLastSyncedAt(DateTimeOffset.UtcNow);
+
+        Assert.Empty(Directory.GetFiles(_tempDir, "*.tmp"));
+    }
 }
