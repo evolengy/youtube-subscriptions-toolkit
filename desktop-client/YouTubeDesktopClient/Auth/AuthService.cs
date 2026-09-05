@@ -109,9 +109,14 @@ public class AuthService
             ["redirect_uri"] = redirectUri,
             ["grant_type"] = "authorization_code",
         }));
-        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode)
+        {
+            Logger.LogError($"Token exchange failed: {(int)response.StatusCode} {body}");
+            throw new InvalidOperationException($"Google rejected the sign-in: {body}");
+        }
 
-        var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        var json = JsonDocument.Parse(body).RootElement;
         return (json.GetProperty("access_token").GetString()!, json.GetProperty("refresh_token").GetString()!);
     }
 
