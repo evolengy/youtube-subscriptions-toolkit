@@ -6,7 +6,7 @@ using YouTubeDesktopClient.Storage.Models;
 
 namespace YouTubeDesktopClient.Api;
 
-public class YouTubeApiClient
+public class YouTubeApiClient : IYouTubeApiClient
 {
     private const string ApiBase = "https://www.googleapis.com/youtube/v3";
     private readonly HttpClient _http;
