@@ -12,3 +12,6 @@ Thumbs.db
 
 # worktrees
 .worktrees/
+
+# subagent-driven-development scratch workspace
+.superpowers/
