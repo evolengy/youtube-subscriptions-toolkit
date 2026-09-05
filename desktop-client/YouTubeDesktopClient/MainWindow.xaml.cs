@@ -13,6 +13,8 @@ public partial class MainWindow : Window
 {
     private readonly TabsViewModel _tabs = new();
     private readonly Dictionary<string, WebView2> _webViewsByTabId = new();
+    private Views.FeedPanel? _feedPanel;
+    private Views.ChannelManagementPanel? _channelPanel;
 
     public MainWindow(GroupsViewModel groupsViewModel, FeedViewModel feedViewModel,
         ChannelManagementViewModel channelViewModel)
@@ -30,7 +32,7 @@ public partial class MainWindow : Window
             var tabItem = new TabItem { Header = tab.Title, Tag = tab.Id };
             tabItem.Content = tab.Id switch
             {
-                "feed" => new Views.FeedPanel(feedViewModel, videoId => OpenVideo(videoId, forceNewTab: false)),
+                "feed" => _feedPanel = new Views.FeedPanel(feedViewModel, videoId => OpenVideo(videoId, forceNewTab: false)),
                 "home" => GetOrCreateWebView(tab.Id, tab.Url),
                 _ => GetOrCreateWebView(tab.Id, tab.Url),
             };
@@ -42,12 +44,25 @@ public partial class MainWindow : Window
         // in-place-vs-new-tab video navigation decision from Task 11) — it
         // gets a fourth pinned tab added directly here instead, so the
         // dead-channel/unsubscribe feature is actually reachable.
+        _channelPanel = new Views.ChannelManagementPanel(channelViewModel);
         MainTabs.Items.Add(new TabItem
         {
             Header = "Channels",
             Tag = "channels",
-            Content = new Views.ChannelManagementPanel(channelViewModel),
+            Content = _channelPanel,
         });
+    }
+
+    /// <summary>
+    /// Re-renders the store-backed panels. Called after a background sync has
+    /// written new data; the caller is responsible for being on the UI thread
+    /// (App marshals via Dispatcher.Invoke, since the sync event is raised on a
+    /// threadpool thread).
+    /// </summary>
+    public void RefreshPanels()
+    {
+        _feedPanel?.Refresh();
+        _channelPanel?.Refresh();
     }
 
     private WebView2 GetOrCreateWebView(string tabId, string url)

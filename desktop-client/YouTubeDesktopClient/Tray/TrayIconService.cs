@@ -7,11 +7,13 @@ public class TrayIconService : IDisposable
     private const string StartupValueName = "YouTubeDesktopClient";
     private readonly NotifyIcon _notifyIcon;
 
-    public TrayIconService(Action onOpen, Action onRefreshNow, Action onExit)
+    public TrayIconService(Action onOpen, Action onRefreshNow, Action onSignIn, Action onSignOut, Action onExit)
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open", null, (_, _) => onOpen());
         menu.Items.Add("Refresh now", null, (_, _) => onRefreshNow());
+        menu.Items.Add("Sign in", null, (_, _) => onSignIn());
+        menu.Items.Add("Sign out", null, (_, _) => onSignOut());
 
         var startupItem = new ToolStripMenuItem("Start with Windows")
         {

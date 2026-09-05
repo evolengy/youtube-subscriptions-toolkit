@@ -14,12 +14,18 @@ public class FeedViewModel
     public string SortBy { get; set; } = "date";
     public bool HideWatched { get; set; }
 
+    // Snapshot of the subscriptions cache taken once per GetVisibleItems call,
+    // so per-card country lookups don't re-read and re-deserialize cache.json
+    // once for every video on screen.
+    private Dictionary<string, SubscriptionCacheEntry>? _channelsSnapshot;
+
     public FeedViewModel(SubscriptionStore store) => _store = store;
 
     public List<FeedItem> GetVisibleItems(string? activeGroupId)
     {
         var videosCache = _store.GetVideosCache();
         var watchedIds = _store.GetWatchedVideoIds();
+        _channelsSnapshot = _store.GetSubscriptionsCache();
 
         IEnumerable<string> channelIds = activeGroupId == null
             ? videosCache.Keys
@@ -48,6 +54,18 @@ public class FeedViewModel
         };
 
         return items.ToList();
+    }
+
+    /// <summary>
+    /// Country lives on the channel's cache entry rather than on the video, so
+    /// the feed card has to look it up by channel id. Served from the snapshot
+    /// taken by the most recent <see cref="GetVisibleItems"/> call (the panel
+    /// always calls that immediately before rendering its cards).
+    /// </summary>
+    public string? GetChannelCountry(string channelId)
+    {
+        var channels = _channelsSnapshot ??= _store.GetSubscriptionsCache();
+        return channels.TryGetValue(channelId, out var entry) ? entry.Country : null;
     }
 
     public void MarkWatched(string videoId) => _store.MarkVideoWatched(videoId);

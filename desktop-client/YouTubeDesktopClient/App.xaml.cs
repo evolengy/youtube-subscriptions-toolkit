@@ -7,6 +7,7 @@ using YouTubeDesktopClient.Auth;
 using YouTubeDesktopClient.Channels;
 using YouTubeDesktopClient.Feed;
 using YouTubeDesktopClient.Groups;
+using YouTubeDesktopClient.Logging;
 using YouTubeDesktopClient.Storage;
 using YouTubeDesktopClient.Sync;
 using YouTubeDesktopClient.Tray;
@@ -39,7 +40,6 @@ public partial class App : Application
         Func<Task<string?>> getAccessToken = () => authService.GetAccessTokenSilentAsync();
 
         _sync = new BackgroundSyncService(apiClient, store, getAccessToken);
-        _sync.Start(SyncInterval);
 
         var groupsViewModel = new GroupsViewModel(store);
         var feedViewModel = new FeedViewModel(store);
@@ -48,19 +48,56 @@ public partial class App : Application
         _mainWindow = new MainWindow(groupsViewModel, feedViewModel, channelViewModel);
         _mainWindow.Show();
 
+        // BackgroundSyncService raises SyncCompleted on the timer's threadpool
+        // thread, so the panel refresh has to hop to the UI thread explicitly.
+        _sync.SyncCompleted += () => _mainWindow.Dispatcher.Invoke(() => _mainWindow.RefreshPanels());
+
+        // Started only after the handler is attached: Start fires the first run
+        // immediately (TimeSpan.Zero), and a first launch that completed its
+        // sync before the subscription existed would leave the UI stale — the
+        // exact staleness this event is here to fix.
+        _sync.Start(SyncInterval);
+
         _tray = new TrayIconService(
             onOpen: () => { _mainWindow.Show(); _mainWindow.WindowState = WindowState.Normal; },
-            onRefreshNow: () => _sync.RunOnceAsync().GetAwaiter().GetResult(),
+            // Fire-and-forget rather than .GetAwaiter().GetResult(): this runs
+            // on the UI thread, where blocking on a task whose continuations
+            // are posted back to the dispatcher deadlocks permanently.
+            onRefreshNow: () => _ = RefreshNowAsync(),
+            onSignIn: () => _ = SignInIfNeededAsync(authService),
+            onSignOut: () => authService.SignOut(),
             onExit: () => Shutdown());
 
         _ = SignInIfNeededAsync(authService);
     }
 
+    private async Task RefreshNowAsync()
+    {
+        try
+        {
+            await _sync!.RunOnceAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Manual refresh failed", ex);
+            MessageBox.Show($"Refresh failed: {ex.Message}");
+        }
+    }
+
     private async Task SignInIfNeededAsync(AuthService authService)
     {
-        var token = await authService.GetAccessTokenSilentAsync();
-        if (token == null)
-            await authService.SignInInteractiveAsync();
+        try
+        {
+            var token = await authService.GetAccessTokenSilentAsync();
+            if (token == null)
+                await authService.SignInInteractiveAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Sign-in failed", ex);
+            MessageBox.Show(
+                $"Sign-in failed: {ex.Message}\n\nMake sure you've set a real OAuth client ID in App.xaml.cs.");
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
