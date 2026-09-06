@@ -4,6 +4,10 @@ namespace YouTubeDesktopClient.Tray;
 
 public static class StartupRegistration
 {
+    /// <summary>The Run-key value name shared by the tray menu and the Settings
+    /// panel — both toggle the same registry entry, so they must name it identically.</summary>
+    public const string DefaultValueName = "YouTubeDesktopClient";
+
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
     public static bool IsEnabled(string valueName)

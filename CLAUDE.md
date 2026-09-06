@@ -195,6 +195,10 @@ attached property alone doesn't hold against `IScrollInfo`). Each consumer suppl
 - `Settings/AppSettingsViewModel.cs` is the single runtime source of truth for preferences: every
   setter persists to `settings.json` and pushes the change (ThemeManager for theme, an event for
   density). `Views/SettingsPanel.xaml` is the destination; the toolbar toggle drives the same VM.
+  **Exception: the "Start with Windows" checkbox** is *not* an `AppSettingsViewModel` /
+  `settings.json` value — it reads and writes the `HKCU\...\Run` key directly through
+  `Tray/StartupRegistration.cs` (keyed by `StartupRegistration.DefaultValueName`), the single
+  source of truth shared with the tray menu's identical item (which re-reads it on `Opening`).
 
 ### UI shell (MainWindow)
 
@@ -251,6 +255,11 @@ attached property alone doesn't hold against `IScrollInfo`). Each consumer suppl
   usings: `UseWPF` + `UseWindowsForms` together add them and they collide with WPF's
   `Application`/`Timer`/`UserControl`. Only `Tray/*` (NotifyIcon) uses WinForms, and it qualifies
   those types explicitly.
+- **App icon** — `Assets/app.ico` (YouTube-style red pill + white play triangle, generated;
+  small frames BMP so GDI reads them, the 256 frame PNG). Wired three ways: `<ApplicationIcon>`
+  in `csproj` (exe → taskbar / Explorer), `Icon="/Assets/app.ico"` on `MainWindow` (title bar /
+  Alt-Tab, needs the `<Resource>` include), and `TrayIconService` pulls it off the running exe
+  with `Icon.ExtractAssociatedIcon(Environment.ProcessPath)` — no second copy of the file.
 - **Theming reaches WPF only.** WPF popups/menus/tooltips are themed by styles in
   `Themes/Controls.xaml` (`ToolTip` included — without it every `ToolTip="..."` is system-white in
   dark). The tray `ContextMenuStrip` is WinForms, so `Tray/DarkMenuRenderer.cs` gives it a
@@ -264,5 +273,4 @@ message router; `youtubeApi.js` wraps the Data API using `chrome.identity.getAut
 `storage.js` wraps `chrome.storage`. `dashboard.html/js` is the management UI;
 `content-groups.js` injects a "My groups" section into YouTube's own sidebar and
 `content-location.js` adds a country badge on watch pages — those two content scripts are the
-fragile parts the desktop client exists to avoid. Cross-account subscription migration was
-implemented and then deliberately removed — see `extension/STATUS.md` before reconsidering it.
+fragile parts the desktop client exists to avoid.
