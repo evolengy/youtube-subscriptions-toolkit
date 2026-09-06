@@ -71,6 +71,12 @@
                                 <TextBlock Text="Home" VerticalAlignment="Center"/>
                             </StackPanel>
                         </ListBoxItem>
+                        <ListBoxItem Tag="playlists" Padding="8,7">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8FD;" FontFamily="{DynamicResource Font.Icon}" FontSize="16" Width="26"/>
+                                <TextBlock Text="Playlists" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </ListBoxItem>
                         <ListBoxItem Tag="channels" Padding="8,7">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE716;" FontFamily="{DynamicResource Font.Icon}" FontSize="16" Width="26"/>

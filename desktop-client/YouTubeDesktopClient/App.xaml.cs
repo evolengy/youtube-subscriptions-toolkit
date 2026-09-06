@@ -90,9 +90,10 @@ public partial class App : Application
 
         var account = new AccountViewModel(authService, apiClient, store, appDataDir,
             wipeWebViewProfile: () => _mainWindow?.WipeWebViewProfile());
+        var playlistsViewModel = new Playlists.PlaylistsViewModel(apiClient, getAccessToken);
 
         _mainWindow = new MainWindow(groupsViewModel, feedViewModel, channelViewModel,
-            appSettingsViewModel, store, apiClient, getAccessToken, account,
+            appSettingsViewModel, store, apiClient, getAccessToken, account, playlistsViewModel,
             onRefreshNow: () => _ = RefreshNowAsync());
         _mainWindow.Show();
 

@@ -1,17 +1,11 @@
 <UserControl x:Class="YouTubeDesktopClient.Views.FeedPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
-             xmlns:vwp="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel">
+             xmlns:local="clr-namespace:YouTubeDesktopClient.Views">
     <UserControl.Resources>
-        <!-- Density-driven sizes; FeedPanel.ApplyDensity() rewrites these and the
-             card template picks the change up through DynamicResource. -->
-        <sys:Double x:Key="Feed.CardWidth">300</sys:Double>
-        <sys:Double x:Key="Feed.ThumbHeight">169</sys:Double>
-        <sys:Double x:Key="Feed.TitleHeight">38</sys:Double>
-
         <!-- Card = a soft raised surface with a big-radius thumbnail (prototype B).
-             No border; the fill + rounding carry it. Action row fades in on hover. -->
+             No border; the fill + rounding carry it. Action row fades in on hover.
+             Sizes come from VideoCardGrid's density resources via DynamicResource. -->
         <DataTemplate x:Key="VideoCardTemplate">
             <Border x:Name="CardRoot" Background="{DynamicResource Brush.Elevated}" CornerRadius="14"
                     Width="{DynamicResource Feed.CardWidth}" Margin="6" Padding="6,6,6,10">
@@ -33,6 +27,8 @@
                                 Command="{Binding PlayCommand}" Padding="14,5"/>
                         <Button Content="{Binding WatchButtonLabel}" Margin="8,0,0,0" Padding="10,5"
                                 Command="{Binding ToggleWatchedCommand}"/>
+                        <Button Content="Save" Margin="8,0,0,0" Padding="10,5"
+                                Command="{Binding AddToPlaylistCommand}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -65,43 +61,8 @@
         <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" Style="{StaticResource Text.Meta}"
                    Margin="4,8,0,2" Visibility="Collapsed"/>
 
-        <ListBox x:Name="VideoGrid"
-                 ItemsSource="{Binding Items}"
-                 ItemTemplate="{StaticResource VideoCardTemplate}"
-                 HorizontalContentAlignment="Stretch"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                 ScrollViewer.VerticalScrollBarVisibility="Auto"
-                 VirtualizingPanel.IsVirtualizing="True"
-                 VirtualizingPanel.VirtualizationMode="Recycling"
-                 VirtualizingPanel.ScrollUnit="Pixel"
-                 ScrollViewer.ScrollChanged="VideoGrid_ScrollChanged">
-            <ListBox.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <!-- Horizontal: items fill a row then wrap DOWN -> vertical scroll,
-                         columns reflow to the window width. MouseWheelDelta bumped
-                         from the default (~48px) so one notch clears most of a card
-                         row instead of nudging a few pixels. -->
-                    <vwp:VirtualizingWrapPanel Orientation="Horizontal" SpacingMode="StartAndEndOnly"
-                                               StretchItems="False" MouseWheelDelta="260"/>
-                </ItemsPanelTemplate>
-            </ListBox.ItemsPanel>
-            <ListBox.ItemContainerStyle>
-                <!-- Feed cards aren't a selectable list; strip the hover/selection
-                     fill the shared ListBoxItem style would draw behind them. -->
-                <Style TargetType="ListBoxItem">
-                    <Setter Property="Padding" Value="0"/>
-                    <Setter Property="Margin" Value="0"/>
-                    <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="Focusable" Value="False"/>
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="ListBoxItem">
-                                <ContentPresenter/>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                </Style>
-            </ListBox.ItemContainerStyle>
-        </ListBox>
+        <local:VideoCardGrid x:Name="Cards"
+                             ItemsSource="{Binding Items}"
+                             ItemTemplate="{StaticResource VideoCardTemplate}"/>
     </DockPanel>
 </UserControl>

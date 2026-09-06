@@ -15,7 +15,8 @@ public sealed class VideoCardViewModel : INotifyPropertyChanged
     private bool _isWatched;
 
     public VideoCardViewModel(FeedItem item, string? country,
-        Action<string, string> onPlay, Action<string> onToggleWatched)
+        Action<string, string> onPlay, Action<string> onToggleWatched,
+        Action<string, string>? onAddToPlaylist = null)
     {
         VideoId = item.Video.VideoId;
         Title = item.Video.Title;
@@ -25,6 +26,7 @@ public sealed class VideoCardViewModel : INotifyPropertyChanged
 
         PlayCommand = new RelayCommand(() => onPlay(VideoId, Title));
         ToggleWatchedCommand = new RelayCommand(() => onToggleWatched(VideoId));
+        AddToPlaylistCommand = new RelayCommand(() => onAddToPlaylist?.Invoke(VideoId, Title));
     }
 
     public string VideoId { get; }
@@ -48,6 +50,7 @@ public sealed class VideoCardViewModel : INotifyPropertyChanged
 
     public ICommand PlayCommand { get; }
     public ICommand ToggleWatchedCommand { get; }
+    public ICommand AddToPlaylistCommand { get; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null) =>

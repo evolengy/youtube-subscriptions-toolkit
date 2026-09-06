@@ -30,3 +30,13 @@ public record PlaylistItemsResult(
     // Cursor for the *next* (older) page of this uploads playlist. Null when the
     // response had no nextPageToken, i.e. the playlist has no more history.
     string? NextPageToken = null);
+
+/// <summary>One of the signed-in user's playlists (the sidebar list).</summary>
+public record PlaylistSummary(
+    string Id, string Title, string Description, long ItemCount, string? ThumbnailUrl, string Privacy);
+
+/// <summary>One video inside a playlist. <see cref="PlaylistItemId"/> is the
+/// membership row's id — the handle needed to remove it (not the video id).</summary>
+public record PlaylistItemEntry(
+    string PlaylistItemId, string VideoId, string Title, string? ThumbnailUrl,
+    string ChannelTitle, int Position);

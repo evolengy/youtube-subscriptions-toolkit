@@ -152,14 +152,15 @@ has never been one. Breaking this makes deep scroll re-fetch pages forever.
 `Feed/FeedViewModel.cs` is stateful: an `ObservableCollection<VideoCardViewModel> Items` that
 grows by `PageSize` (60) per scroll batch from the local cache, and once that is exhausted asks
 `FeedExpansionService` for more history (gated by `AppSettings.AutoExpandFeed` and
-`QuotaExhausted`). `GetVisibleItems` stays a pure function. `Views/FeedPanel.xaml` is a `ListBox`
-+ WpfToolkit `VirtualizingWrapPanel` (NuGet `VirtualizingWrapPanel`) — an adaptive card grid
-that reflows to width and recycles containers. This replaced an imperative card builder that
-had to cap itself at 150 items. Two panel gotchas are handled in `FeedPanel.xaml.cs`:
-`MouseWheelDelta` is raised (the default is tiny for a card grid), and the real inner
-`ScrollViewer` is pinned to `HorizontalScrollBarVisibility=Disabled` on `Loaded` **and**
-`SizeChanged` (the panel reports a sub-pixel horizontal extent at some widths, and the XAML
-attached property alone doesn't hold against its `IScrollInfo`).
+`QuotaExhausted`). `GetVisibleItems` stays a pure function. The card grid itself is
+`Views/VideoCardGrid.xaml` — a `ListBox` + WpfToolkit `VirtualizingWrapPanel` (NuGet
+`VirtualizingWrapPanel`) that reflows to width and recycles containers, shared by `FeedPanel` and
+`PlaylistsPanel`. It owns the two gotchas: `MouseWheelDelta` is raised (the default is tiny for a
+card grid), and the real inner `ScrollViewer` is pinned to `HorizontalScrollBarVisibility=Disabled`
+on `Loaded` **and** `SizeChanged` (sub-pixel horizontal extent at some widths, and the XAML
+attached property alone doesn't hold against `IScrollInfo`). Each consumer supplies its own
+`ItemTemplate` and handles `NearEndReached`; `SetDensity` rewrites the `Feed.CardWidth/…` resources
+(`Feed/FeedLayout.cs`).
 
 ### Theming
 
@@ -186,8 +187,13 @@ attached property alone doesn't hold against its `IScrollInfo`).
 
 ### UI shell (MainWindow)
 
-- **Sidebar destinations** (Feed / Home / Channels / Settings) are *not* tabs — a `ListBox` in the
-  sidebar; `MainWindow` swaps `ContentHost.Content` directly.
+- **Sidebar destinations** (Feed / Home / Playlists / Channels / Settings) are *not* tabs — a
+  `ListBox` in the sidebar; `MainWindow` swaps `ContentHost.Content` directly.
+- **Playlists** — `Playlists/PlaylistsViewModel.cs` (shared by `Views/PlaylistsPanel.xaml` and the
+  toolbar/action-bar "Save to playlist" picker) fetches the user's playlists once per session and
+  mutates the list in place on create / rename / delete / add. `Api/IYouTubePlaylistApi` (on
+  `YouTubeApiClient`): reads 1 unit, writes **50**. A `playlistItems.list` right after a delete is
+  eventually-consistent, so the panel drops the removed card locally instead of re-fetching.
 - **Video tabs** are the only real tabs (`Tabs/TabsViewModel.cs`) and live in the top strip:
   each is its own `WebView2`, with the real (truncated) video title, a close button,
   middle-click-to-close and a Close / Close others / Close all context menu. Clicking a video

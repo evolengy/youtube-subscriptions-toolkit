@@ -14,6 +14,8 @@
                     Content="&#xE8E0;" ToolTip="Dislike" Margin="2,0,0,0" Click="Dislike_Click"/>
             <Button x:Name="SubscribeButton" DockPanel.Dock="Left" Padding="14,5" Margin="12,0,0,0"
                     Content="Subscribe" Click="Subscribe_Click"/>
+            <Button x:Name="SaveButton" DockPanel.Dock="Left" Style="{StaticResource Button.Icon}"
+                    Content="&#xE728;" ToolTip="Save to playlist" Margin="8,0,0,0" Click="Save_Click"/>
 
             <Button x:Name="CommentButton" DockPanel.Dock="Right" Content="Comment" Padding="12,5"
                     Margin="6,0,0,0" Click="Comment_Click"/>

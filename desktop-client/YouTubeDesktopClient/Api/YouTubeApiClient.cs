@@ -6,7 +6,7 @@ using YouTubeDesktopClient.Storage.Models;
 
 namespace YouTubeDesktopClient.Api;
 
-public class YouTubeApiClient : IYouTubeApiClient, IYouTubeAccountApi
+public class YouTubeApiClient : IYouTubeApiClient, IYouTubeAccountApi, IYouTubePlaylistApi
 {
     private const string ApiBase = "https://www.googleapis.com/youtube/v3";
     private readonly HttpClient _http;
@@ -309,6 +309,170 @@ public class YouTubeApiClient : IYouTubeApiClient, IYouTubeAccountApi
             },
         });
         using var response = await _http.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+            throw new YouTubeApiException(response.StatusCode, await response.Content.ReadAsStringAsync());
+    }
+
+    // ---- playlists (IYouTubePlaylistApi) -----------------------------
+
+    public async Task<List<PlaylistSummary>> ListMyPlaylistsAsync(string accessToken)
+    {
+        var results = new List<PlaylistSummary>();
+        string? pageToken = null;
+        do
+        {
+            var request = BuildRequest(HttpMethod.Get, "playlists", accessToken, new()
+            {
+                ["part"] = "snippet,contentDetails,status",
+                ["mine"] = "true",
+                ["maxResults"] = "50",
+                ["pageToken"] = pageToken,
+            });
+            using var response = await _http.SendAsync(request);
+            var root = await ReadJsonRootAsync(response);
+
+            foreach (var item in root.GetProperty("items").EnumerateArray())
+            {
+                var snippet = item.GetProperty("snippet");
+                var thumbnails = snippet.TryGetProperty("thumbnails", out var t) ? t : default;
+                results.Add(new PlaylistSummary(
+                    item.GetProperty("id").GetString()!,
+                    snippet.GetProperty("title").GetString() ?? "",
+                    snippet.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "",
+                    item.TryGetProperty("contentDetails", out var cd) && cd.TryGetProperty("itemCount", out var ic)
+                        ? ic.GetInt64() : 0,
+                    ThumbUrl(thumbnails),
+                    item.TryGetProperty("status", out var s) && s.TryGetProperty("privacyStatus", out var ps)
+                        ? ps.GetString() ?? "private" : "private"));
+            }
+
+            pageToken = root.TryGetProperty("nextPageToken", out var next) ? next.GetString() : null;
+        } while (pageToken != null);
+
+        return results;
+    }
+
+    public async Task<string> CreatePlaylistAsync(
+        string accessToken, string title, string? description, string privacy = "private")
+    {
+        var request = BuildRequest(HttpMethod.Post, "playlists", accessToken, new()
+        {
+            ["part"] = "snippet,status",
+        });
+        request.Content = JsonBody(new
+        {
+            snippet = new { title, description = description ?? "" },
+            status = new { privacyStatus = privacy },
+        });
+        using var response = await _http.SendAsync(request);
+        var root = await ReadJsonRootAsync(response);
+        return root.GetProperty("id").GetString()!;
+    }
+
+    public async Task UpdatePlaylistAsync(
+        string accessToken, string playlistId, string title, string? description)
+    {
+        var request = BuildRequest(HttpMethod.Put, "playlists", accessToken, new()
+        {
+            ["part"] = "snippet",
+        });
+        request.Content = JsonBody(new
+        {
+            id = playlistId,
+            snippet = new { title, description = description ?? "" },
+        });
+        using var response = await _http.SendAsync(request);
+        await EnsureOkAsync(response);
+    }
+
+    public async Task DeletePlaylistAsync(string accessToken, string playlistId)
+    {
+        var request = BuildRequest(HttpMethod.Delete, "playlists", accessToken, new()
+        {
+            ["id"] = playlistId,
+        });
+        using var response = await _http.SendAsync(request);
+        await EnsureOkAsync(response);
+    }
+
+    public async Task<List<PlaylistItemEntry>> ListPlaylistItemsAsync(string accessToken, string playlistId)
+    {
+        var results = new List<PlaylistItemEntry>();
+        string? pageToken = null;
+        do
+        {
+            var request = BuildRequest(HttpMethod.Get, "playlistItems", accessToken, new()
+            {
+                ["part"] = "snippet,contentDetails",
+                ["playlistId"] = playlistId,
+                ["maxResults"] = "50",
+                ["pageToken"] = pageToken,
+            });
+            using var response = await _http.SendAsync(request);
+            var root = await ReadJsonRootAsync(response);
+
+            foreach (var item in root.GetProperty("items").EnumerateArray())
+            {
+                var snippet = item.GetProperty("snippet");
+                var resource = snippet.TryGetProperty("resourceId", out var r) ? r : default;
+                // A deleted / private video keeps its playlistItem row but drops
+                // most snippet fields — guard every read.
+                results.Add(new PlaylistItemEntry(
+                    item.GetProperty("id").GetString()!,
+                    resource.ValueKind == JsonValueKind.Object && resource.TryGetProperty("videoId", out var vid)
+                        ? vid.GetString() ?? "" : "",
+                    snippet.TryGetProperty("title", out var tt) ? tt.GetString() ?? "" : "",
+                    snippet.TryGetProperty("thumbnails", out var th) ? ThumbUrl(th) : null,
+                    snippet.TryGetProperty("videoOwnerChannelTitle", out var oc) ? oc.GetString() ?? "" : "",
+                    snippet.TryGetProperty("position", out var p) ? p.GetInt32() : 0));
+            }
+
+            pageToken = root.TryGetProperty("nextPageToken", out var next) ? next.GetString() : null;
+        } while (pageToken != null);
+
+        return results;
+    }
+
+    public async Task<string> AddToPlaylistAsync(string accessToken, string playlistId, string videoId)
+    {
+        var request = BuildRequest(HttpMethod.Post, "playlistItems", accessToken, new()
+        {
+            ["part"] = "snippet",
+        });
+        request.Content = JsonBody(new
+        {
+            snippet = new
+            {
+                playlistId,
+                resourceId = new { kind = "youtube#video", videoId },
+            },
+        });
+        using var response = await _http.SendAsync(request);
+        var root = await ReadJsonRootAsync(response);
+        return root.GetProperty("id").GetString()!;
+    }
+
+    public async Task RemoveFromPlaylistAsync(string accessToken, string playlistItemId)
+    {
+        var request = BuildRequest(HttpMethod.Delete, "playlistItems", accessToken, new()
+        {
+            ["id"] = playlistItemId,
+        });
+        using var response = await _http.SendAsync(request);
+        await EnsureOkAsync(response);
+    }
+
+    private static string? ThumbUrl(JsonElement thumbnails)
+    {
+        if (thumbnails.ValueKind != JsonValueKind.Object) return null;
+        foreach (var size in new[] { "medium", "default", "high" })
+            if (thumbnails.TryGetProperty(size, out var s) && s.TryGetProperty("url", out var u))
+                return u.GetString();
+        return null;
+    }
+
+    private static async Task EnsureOkAsync(HttpResponseMessage response)
+    {
         if (!response.IsSuccessStatusCode)
             throw new YouTubeApiException(response.StatusCode, await response.Content.ReadAsStringAsync());
     }

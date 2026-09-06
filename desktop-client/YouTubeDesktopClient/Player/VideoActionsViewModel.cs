@@ -106,7 +106,7 @@ public class VideoActionsViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             Logger.LogError($"Loading video action state for {videoId} failed", ex);
-            NotificationCenter.Report(Describe(ex));
+            NotificationCenter.Report(ApiErrorText.Describe(ex));
         }
         finally
         {
@@ -165,31 +165,13 @@ public class VideoActionsViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             Logger.LogError("Player action failed", ex);
-            NotificationCenter.Report(Describe(ex));
+            NotificationCenter.Report(ApiErrorText.Describe(ex));
         }
         finally
         {
             Busy = false;
             RaiseAll();
         }
-    }
-
-    private static string Describe(Exception ex) => ex switch
-    {
-        YouTubeApiException { StatusCode: HttpStatusCode.Forbidden } e when IsQuota(e) =>
-            "YouTube API daily quota is used up — actions work again after it resets (~midnight US Pacific).",
-        YouTubeApiException { StatusCode: HttpStatusCode.Forbidden } => "YouTube rejected the action.",
-        YouTubeApiException { StatusCode: HttpStatusCode.Unauthorized } => "Session expired — sign in again.",
-        YouTubeApiException => "YouTube returned an error.",
-        _ => "Something went wrong.",
-    };
-
-    private static bool IsQuota(YouTubeApiException e)
-    {
-        var body = e.ResponseBody ?? string.Empty;
-        return body.Contains("quotaExceeded", StringComparison.OrdinalIgnoreCase)
-            || body.Contains("dailyLimitExceeded", StringComparison.OrdinalIgnoreCase)
-            || body.Contains("rateLimitExceeded", StringComparison.OrdinalIgnoreCase);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

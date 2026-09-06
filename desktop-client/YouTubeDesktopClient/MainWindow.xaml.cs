@@ -39,6 +39,8 @@ public partial class MainWindow : Window
     private readonly Views.ChannelManagementPanel _channelPanel;
     private readonly Views.SettingsPanel _settingsPanel;
     private readonly Views.GroupsPanel _groupsPanel;
+    private readonly Views.PlaylistsPanel _playlistsPanel;
+    private readonly Playlists.PlaylistsViewModel _playlistsVm;
     private WebView2? _homeWebView;
 
     // The video player = the API action bar stacked on top of PlayerView (the
@@ -71,11 +73,12 @@ public partial class MainWindow : Window
     public MainWindow(GroupsViewModel groupsViewModel, FeedViewModel feedViewModel,
         ChannelManagementViewModel channelViewModel, AppSettingsViewModel settingsViewModel,
         SubscriptionStore store, IYouTubeApiClient apiClient, Func<Task<string?>> getAccessToken,
-        Account.AccountViewModel account, Action onRefreshNow)
+        Account.AccountViewModel account, Playlists.PlaylistsViewModel playlistsVm, Action onRefreshNow)
     {
         InitializeComponent();
         _settingsViewModel = settingsViewModel;
         _account = account;
+        _playlistsVm = playlistsVm;
         _onRefreshNow = onRefreshNow;
 
         _account.Changed += () => Dispatcher.Invoke(UpdateAccountButton);
@@ -97,8 +100,13 @@ public partial class MainWindow : Window
         // callback can't hit a null field.
         _feedPanel = new Views.FeedPanel(feedViewModel,
             (videoId, title) => OpenVideo(videoId, title, forceNewTab: false), settingsViewModel);
+        feedViewModel.AddToPlaylistRequestedEvent += (videoId, _) => ShowPlaylistPicker(videoId);
         _channelPanel = new Views.ChannelManagementPanel(channelViewModel);
         _settingsPanel = new Views.SettingsPanel(settingsViewModel, store);
+        _playlistsPanel = new Views.PlaylistsPanel(playlistsVm, settingsViewModel,
+            (videoId, title) => OpenVideo(videoId, title, forceNewTab: false));
+
+        _actionBar.SaveRequested += ShowPlaylistPicker;
 
         _groupsPanel = new Views.GroupsPanel(groupsViewModel, OnGroupSelected);
         GroupsHost.Content = _groupsPanel;
@@ -322,13 +330,43 @@ public partial class MainWindow : Window
         _tabs.ActiveTabId = null;
         RefreshVideoTabs();
 
+        if (dest == "playlists") _ = _playlistsPanel.ReloadAsync();
+
         ContentHost.Content = dest switch
         {
             "home" => GetOrCreateHomeWebView(),
             "channels" => _channelPanel,
             "settings" => _settingsPanel,
+            "playlists" => _playlistsPanel,
             _ => _feedPanel,
         };
+    }
+
+    /// <summary>Opens a small menu of the user's playlists (add-on-click) plus a
+    /// jump to the Playlists panel for creating/managing them.</summary>
+    private async void ShowPlaylistPicker(string videoId)
+    {
+        if (string.IsNullOrEmpty(videoId)) return;
+        await _playlistsVm.EnsureLoadedAsync();
+
+        var menu = new ContextMenu();
+        foreach (var p in _playlistsVm.Playlists)
+        {
+            var item = new MenuItem { Header = p.Title };
+            var id = p.Id;
+            item.Click += async (_, _) =>
+            {
+                if (await _playlistsVm.AddVideoAsync(id, videoId))
+                    NotificationCenter.Report($"Saved to “{_playlistsVm.Playlists.FirstOrDefault(x => x.Id == id)?.Title}”.");
+            };
+            menu.Items.Add(item);
+        }
+        if (_playlistsVm.Playlists.Count > 0) menu.Items.Add(new Separator());
+        var manage = new MenuItem { Header = "Manage playlists…" };
+        manage.Click += (_, _) => SelectNav("playlists");
+        menu.Items.Add(manage);
+
+        menu.IsOpen = true;
     }
 
     private void OnGroupSelected(string? groupId)

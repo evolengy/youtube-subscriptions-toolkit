@@ -2,7 +2,6 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using YouTubeDesktopClient.Diagnostics;
 using YouTubeDesktopClient.Feed;
 using YouTubeDesktopClient.Settings;
@@ -35,35 +34,9 @@ public partial class FeedPanel : UserControl
         HideWatchedBox.Checked += Filters_Changed;
         HideWatchedBox.Unchecked += Filters_Changed;
 
-        // The VirtualizingWrapPanel reports a sub-pixel horizontal extent at some
-        // widths, and the inner ScrollViewer then shows a phantom horizontal bar
-        // that scrolls nothing. Pinning the real ScrollViewer to Disabled is the
-        // reliable fix (the XAML attached property alone doesn't stick against the
-        // panel's IScrollInfo) — and it has to be re-applied after relayout.
-        VideoGrid.Loaded += (_, _) => PinNoHorizontalScroll();
-        VideoGrid.SizeChanged += (_, _) => PinNoHorizontalScroll();
+        Cards.NearEndReached += OnNearEndReached;
 
         _viewModel.Reload();
-    }
-
-    private ScrollViewer? _gridScrollViewer;
-
-    private void PinNoHorizontalScroll()
-    {
-        _gridScrollViewer ??= FindDescendant<ScrollViewer>(VideoGrid);
-        if (_gridScrollViewer is { } sv && sv.HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled)
-            sv.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
-    }
-
-    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
-    {
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
-        {
-            var child = VisualTreeHelper.GetChild(root, i);
-            if (child is T match) return match;
-            if (FindDescendant<T>(child) is { } nested) return nested;
-        }
-        return null;
     }
 
     public void SetActiveGroup(string? groupId) => _viewModel.SetActiveGroup(groupId);
@@ -79,13 +52,7 @@ public partial class FeedPanel : UserControl
         UpdateStatus();
     }
 
-    private void ApplyDensity()
-    {
-        var layout = FeedLayout.For(_settings.Density);
-        Resources["Feed.CardWidth"] = layout.CardWidth;
-        Resources["Feed.ThumbHeight"] = layout.ThumbnailHeight;
-        Resources["Feed.TitleHeight"] = layout.TitleHeight;
-    }
+    private void ApplyDensity() => Cards.SetDensity(_settings.Density);
 
     private void Filters_Changed(object sender, System.Windows.RoutedEventArgs e)
     {
@@ -95,15 +62,9 @@ public partial class FeedPanel : UserControl
         _viewModel.Reload();
     }
 
-    private async void VideoGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    private async void OnNearEndReached()
     {
-        if (e.ExtentHeightChange != 0 && e.VerticalChange == 0) return; // layout pass, not a user scroll
         if (_loadingMore) return;
-
-        // Within two viewports of the bottom -> pull the next batch.
-        var distanceToEnd = e.ExtentHeight - (e.VerticalOffset + e.ViewportHeight);
-        if (distanceToEnd > e.ViewportHeight * 2) return;
-
         _loadingMore = true;
         try
         {

@@ -210,4 +210,135 @@ public class YouTubeApiClientTests
         Assert.Equal(HttpMethod.Delete, handler.LastRequest!.Method);
         Assert.Contains("id=sub123", handler.LastRequest.RequestUri!.Query);
     }
+
+    [Fact]
+    public async Task GetMyChannelAsync_MapsTitleThumbAndHandle()
+    {
+        var handler = new FakeHttpMessageHandler(_ => JsonResponse("""
+        { "items": [ { "id": "UCme", "snippet": {
+            "title": "My Channel", "customUrl": "@me",
+            "thumbnails": { "default": { "url": "http://a" } } } } ] }
+        """));
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        var me = await client.GetMyChannelAsync("token");
+
+        Assert.Equal("UCme", me!.ChannelId);
+        Assert.Equal("My Channel", me.Title);
+        Assert.Equal("@me", me.Handle);
+        Assert.Equal("http://a", me.ThumbnailUrl);
+    }
+
+    [Fact]
+    public async Task GetMyChannelAsync_ReturnsNull_WhenAccountHasNoChannel()
+    {
+        var handler = new FakeHttpMessageHandler(_ => JsonResponse("""{ "items": [] }"""));
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        Assert.Null(await client.GetMyChannelAsync("token"));
+    }
+
+    [Fact]
+    public async Task ListMyPlaylistsAsync_ParsesTitleCountAndPrivacy()
+    {
+        var handler = new FakeHttpMessageHandler(_ => JsonResponse("""
+        { "items": [ {
+            "id": "PL1",
+            "snippet": { "title": "Watch queue", "description": "later",
+                         "thumbnails": { "medium": { "url": "http://t" } } },
+            "contentDetails": { "itemCount": 12 },
+            "status": { "privacyStatus": "unlisted" } } ] }
+        """));
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        var result = await client.ListMyPlaylistsAsync("token");
+
+        Assert.Single(result);
+        Assert.Equal("Watch queue", result[0].Title);
+        Assert.Equal(12, result[0].ItemCount);
+        Assert.Equal("unlisted", result[0].Privacy);
+        Assert.Equal("http://t", result[0].ThumbnailUrl);
+    }
+
+    [Fact]
+    public async Task CreatePlaylistAsync_PostsSnippetAndStatus_ReturnsId()
+    {
+        string? sentBody = null;
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            sentBody = req.Content!.ReadAsStringAsync().Result;
+            return JsonResponse("""{ "id": "PLnew" }""");
+        });
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        var id = await client.CreatePlaylistAsync("token", "New list", "desc", "private");
+
+        Assert.Equal("PLnew", id);
+        Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
+        Assert.Contains("\"title\":\"New list\"", sentBody);
+        Assert.Contains("\"privacyStatus\":\"private\"", sentBody);
+    }
+
+    [Fact]
+    public async Task ListPlaylistItemsAsync_MapsItemIdVideoIdAndSurvivesDeletedVideos()
+    {
+        var handler = new FakeHttpMessageHandler(_ => JsonResponse("""
+        { "items": [
+            { "id": "pli1", "snippet": { "title": "A", "position": 0,
+              "videoOwnerChannelTitle": "Chan",
+              "resourceId": { "videoId": "v1" } } },
+            { "id": "pli2", "snippet": { "title": "Deleted video", "position": 1 } }
+        ] }
+        """));
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        var items = await client.ListPlaylistItemsAsync("token", "PL1");
+
+        Assert.Equal("pli1", items[0].PlaylistItemId);
+        Assert.Equal("v1", items[0].VideoId);
+        Assert.Equal("Chan", items[0].ChannelTitle);
+        Assert.Equal("", items[1].VideoId); // no resourceId -> empty, no throw
+    }
+
+    [Fact]
+    public async Task AddToPlaylistAsync_PostsResourceId_ReturnsItemId()
+    {
+        string? body = null;
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            body = req.Content!.ReadAsStringAsync().Result;
+            return JsonResponse("""{ "id": "pliNew" }""");
+        });
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        var id = await client.AddToPlaylistAsync("token", "PL1", "vid9");
+
+        Assert.Equal("pliNew", id);
+        Assert.Contains("\"playlistId\":\"PL1\"", body);
+        Assert.Contains("\"videoId\":\"vid9\"", body);
+    }
+
+    [Fact]
+    public async Task RemoveFromPlaylistAsync_DeletesByItemId()
+    {
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        await client.RemoveFromPlaylistAsync("token", "pli7");
+
+        Assert.Equal(HttpMethod.Delete, handler.LastRequest!.Method);
+        Assert.Contains("id=pli7", handler.LastRequest.RequestUri!.Query);
+    }
+
+    [Fact]
+    public async Task DeletePlaylistAsync_Non2xx_ThrowsYouTubeApiException()
+    {
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("nope"),
+        });
+        var client = new YouTubeApiClient(new HttpClient(handler));
+
+        await Assert.ThrowsAsync<YouTubeApiException>(() => client.DeletePlaylistAsync("token", "PL1"));
+    }
 }

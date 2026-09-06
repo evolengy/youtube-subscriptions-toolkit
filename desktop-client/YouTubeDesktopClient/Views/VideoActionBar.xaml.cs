@@ -17,6 +17,7 @@ namespace YouTubeDesktopClient.Views;
 public partial class VideoActionBar : UserControl
 {
     private readonly VideoActionsViewModel _vm;
+    private string? _videoId;
 
     public VideoActionBar(VideoActionsViewModel viewModel)
     {
@@ -26,11 +27,20 @@ public partial class VideoActionBar : UserControl
         Refresh();
     }
 
+    /// <summary>Raised when Save is clicked — the shell opens the playlist picker.</summary>
+    public event Action<string>? SaveRequested;
+
     /// <summary>Point the bar at a newly shown video and (re)load its state.</summary>
     public async void ShowVideo(string videoId)
     {
+        _videoId = videoId;
         CommentBox.Clear();
         await _vm.LoadAsync(videoId);
+    }
+
+    private void Save_Click(object sender, RoutedEventArgs e)
+    {
+        if (_videoId is { } id) SaveRequested?.Invoke(id);
     }
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e) => Refresh();

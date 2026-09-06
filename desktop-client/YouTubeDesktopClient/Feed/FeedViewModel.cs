@@ -123,7 +123,8 @@ public class FeedViewModel : INotifyPropertyChanged
                 item,
                 GetChannelCountry(item.Video.ChannelId),
                 onPlay: PlayRequested,
-                onToggleWatched: ToggleWatched));
+                onToggleWatched: ToggleWatched,
+                onAddToPlaylist: AddToPlaylistRequested));
         }
         _rendered += next.Count;
     }
@@ -140,6 +141,12 @@ public class FeedViewModel : INotifyPropertyChanged
     /// panel opens the video tab and titles it.</summary>
     public event Action<string, string>? PlayRequestedEvent;
     private void PlayRequested(string videoId, string title) => PlayRequestedEvent?.Invoke(videoId, title);
+
+    /// <summary>Raised when a card's Save button is clicked (videoId, title); the
+    /// shell opens the "add to playlist" picker.</summary>
+    public event Action<string, string>? AddToPlaylistRequestedEvent;
+    private void AddToPlaylistRequested(string videoId, string title) =>
+        AddToPlaylistRequestedEvent?.Invoke(videoId, title);
 
     private void ToggleWatched(string videoId)
     {
