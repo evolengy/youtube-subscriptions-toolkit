@@ -5,12 +5,19 @@ public record SubscriptionEntry(string SubscriptionId, string ChannelId, string 
 public record ChannelDetails(string ChannelId, string? Country, string UploadsPlaylistId);
 
 /// <summary>The channel that published a video, plus the signed-in user's current
-/// relationship to it — enough to render the player action bar without extra calls.</summary>
+/// relationship to it, plus the bits of video metadata the native player page
+/// shows — all from the one <c>videos?part=snippet,statistics</c> call the action
+/// bar already makes, so the metadata costs no extra quota. The trailing fields
+/// are defaulted: older callers / test fakes constructing this with four args
+/// still compile.</summary>
 public record VideoActionState(
     string ChannelId,
     string ChannelTitle,
     string Rating,              // "like" | "dislike" | "none"
-    string? SubscriptionId);    // non-null when the user is already subscribed
+    string? SubscriptionId,     // non-null when the user is already subscribed
+    string Description = "",
+    DateTimeOffset? PublishedAt = null,
+    long ViewCount = 0);
 
 public record PlaylistItemsResult(
     List<string> VideoIds,

@@ -187,10 +187,12 @@ public class YouTubeApiClient : IYouTubeApiClient
 
     public async Task<VideoActionState> GetVideoActionStateAsync(string accessToken, string videoId)
     {
-        // Owner channel (snippet has both id and title).
+        // Owner channel + the metadata the native player page renders. snippet
+        // carries channelId/channelTitle/description/publishedAt; statistics
+        // carries viewCount. One call, same as before — just a wider `part`.
         var ownerReq = BuildRequest(HttpMethod.Get, "videos", accessToken, new()
         {
-            ["part"] = "snippet",
+            ["part"] = "snippet,statistics",
             ["id"] = videoId,
         });
         using var ownerResp = await _http.SendAsync(ownerReq);
@@ -201,6 +203,13 @@ public class YouTubeApiClient : IYouTubeApiClient
         var snippet = items[0].GetProperty("snippet");
         var channelId = snippet.GetProperty("channelId").GetString()!;
         var channelTitle = snippet.GetProperty("channelTitle").GetString() ?? "";
+        var description = snippet.TryGetProperty("description", out var descProp)
+            ? descProp.GetString() ?? "" : "";
+        DateTimeOffset? publishedAt = snippet.TryGetProperty("publishedAt", out var pubProp)
+            && pubProp.TryGetDateTimeOffset(out var pub) ? pub : null;
+        long viewCount = items[0].TryGetProperty("statistics", out var stats)
+            && stats.TryGetProperty("viewCount", out var vcProp)
+            && long.TryParse(vcProp.GetString(), out var vc) ? vc : 0;
 
         // Current rating.
         var rateReq = BuildRequest(HttpMethod.Get, "videos/getRating", accessToken, new()
@@ -227,7 +236,8 @@ public class YouTubeApiClient : IYouTubeApiClient
         var subItems = subRoot.GetProperty("items");
         var subscriptionId = subItems.GetArrayLength() > 0 ? subItems[0].GetProperty("id").GetString() : null;
 
-        return new VideoActionState(channelId, channelTitle, rating, subscriptionId);
+        return new VideoActionState(channelId, channelTitle, rating, subscriptionId,
+            description, publishedAt, viewCount);
     }
 
     public async Task RateVideoAsync(string accessToken, string videoId, string rating)

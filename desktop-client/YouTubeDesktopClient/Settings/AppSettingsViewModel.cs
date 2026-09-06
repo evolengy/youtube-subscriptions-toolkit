@@ -1,5 +1,6 @@
 // Settings/AppSettingsViewModel.cs
 using YouTubeDesktopClient.Feed;
+using YouTubeDesktopClient.Player;
 using YouTubeDesktopClient.Storage;
 using YouTubeDesktopClient.Storage.Models;
 using YouTubeDesktopClient.Themes;
@@ -54,6 +55,18 @@ public class AppSettingsViewModel
             _current = _current with { Density = value.ToString() };
             _store.SaveAppSettings(_current);
             DensityChanged?.Invoke();
+        }
+    }
+
+    /// <summary>Read when a video tab opens; changing it affects newly opened
+    /// videos only, so there is nothing to push at existing tabs.</summary>
+    public PlaybackMode PlaybackMode
+    {
+        get => Enum.TryParse<PlaybackMode>(_current.PlaybackMode, out var m) ? m : PlaybackMode.Embed;
+        set
+        {
+            _current = _current with { PlaybackMode = value.ToString() };
+            _store.SaveAppSettings(_current);
         }
     }
 

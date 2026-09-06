@@ -1,6 +1,7 @@
 // Views/SettingsPanel.xaml.cs
 using System.Windows.Controls;
 using YouTubeDesktopClient.Feed;
+using YouTubeDesktopClient.Player;
 using YouTubeDesktopClient.Settings;
 using YouTubeDesktopClient.Storage;
 using YouTubeDesktopClient.Themes;
@@ -25,6 +26,8 @@ public partial class SettingsPanel : UserControl
         ThemeSystem.Checked += (_, _) => SetTheme(AppTheme.System);
         DensityComfortable.Checked += (_, _) => SetDensity(FeedDensity.Comfortable);
         DensityCompact.Checked += (_, _) => SetDensity(FeedDensity.Compact);
+        PlaybackEmbed.Checked += (_, _) => Apply(() => _settings.PlaybackMode = PlaybackMode.Embed);
+        PlaybackFullPage.Checked += (_, _) => Apply(() => _settings.PlaybackMode = PlaybackMode.FullPage);
         AutoExpandBox.Checked += (_, _) => Apply(() => _settings.AutoExpandFeed = true);
         AutoExpandBox.Unchecked += (_, _) => Apply(() => _settings.AutoExpandFeed = false);
     }
@@ -48,6 +51,7 @@ public partial class SettingsPanel : UserControl
             _ => ThemeSystem,
         }).IsChecked = true;
         (_settings.Density == FeedDensity.Compact ? DensityCompact : DensityComfortable).IsChecked = true;
+        (_settings.PlaybackMode == PlaybackMode.FullPage ? PlaybackFullPage : PlaybackEmbed).IsChecked = true;
         AutoExpandBox.IsChecked = _settings.AutoExpandFeed;
         _loading = false;
         Refresh();

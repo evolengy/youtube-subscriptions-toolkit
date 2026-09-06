@@ -14,6 +14,14 @@
     <PackageReference Include="VirtualizingWrapPanel" Version="2.5.4" />
   </ItemGroup>
 
+  <!-- The embed-player host page, loaded by PlayerPageHost via a virtual-host
+       mapping to <output>\Player\. -->
+  <ItemGroup>
+    <Content Include="Player\player.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <!--
     UseWindowsForms + UseWPF together make the SDK add implicit global usings
     for System.Windows.Forms and System.Drawing (needed for NotifyIcon), which

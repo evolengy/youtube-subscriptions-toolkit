@@ -26,4 +26,30 @@ public static class FeedFormatting
             ? duration.ToString(@"h\:mm\:ss")
             : duration.ToString(@"m\:ss");
     }
+
+    /// <summary>
+    /// A coarse "3 hours ago" / "2 weeks ago" label, shown under the player on
+    /// the native video page. English to match the rest of the app's UI strings.
+    /// A publish time in the future (clock skew) reads as "just now".
+    /// </summary>
+    public static string RelativeDate(DateTimeOffset when) => RelativeDate(when, DateTimeOffset.UtcNow);
+
+    public static string RelativeDate(DateTimeOffset when, DateTimeOffset now)
+    {
+        var seconds = (now - when).TotalSeconds;
+        if (seconds < 60) return "just now";
+
+        (double unit, string noun) = seconds switch
+        {
+            < 3600 => (60, "minute"),
+            < 86400 => (3600, "hour"),
+            < 604800 => (86400, "day"),
+            < 2629800 => (604800, "week"),      // 30.44-day month as the week ceiling
+            < 31557600 => (2629800, "month"),   // 365.25-day year
+            _ => (31557600, "year"),
+        };
+
+        int n = (int)(seconds / unit);
+        return $"{n} {noun}{(n == 1 ? "" : "s")} ago";
+    }
 }

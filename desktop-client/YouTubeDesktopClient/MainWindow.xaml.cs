@@ -27,6 +27,10 @@ public partial class MainWindow : Window
 {
     private readonly TabsViewModel _tabs = new();
     private readonly Dictionary<string, WebView2> _webViewsByTabId = new();
+    // Which player each open tab is using. Set when a video is opened (from the
+    // PlaybackMode setting) and flipped to FullPage if the embed player rejects
+    // the video. Cleaned alongside _webViewsByTabId in PruneWebViews.
+    private readonly Dictionary<string, Player.PlaybackMode> _tabPlaybackMode = new();
     private readonly AppSettingsViewModel _settingsViewModel;
     private readonly Action _onRefreshNow;
 
@@ -35,11 +39,18 @@ public partial class MainWindow : Window
     private readonly Views.SettingsPanel _settingsPanel;
     private WebView2? _homeWebView;
 
-    // The video player = the API action bar stacked on top of the tab's WebView2.
-    // One reused host; the WebView2 inside it is swapped per active tab.
+    // The video player = the API action bar stacked on top of PlayerView (the
+    // WebView2 + native metadata strip + "open on YouTube" fallback). One reused
+    // host; the WebView2 inside PlayerView is swapped per active tab.
+    private readonly VideoActionsViewModel _actionsVm;
     private readonly Views.VideoActionBar _actionBar;
-    private readonly ContentControl _playerWebViewHost = new();
+    private readonly Player.PlayerView _playerView;
+    private readonly Player.PlayerPageHost _playerPageHost;
     private readonly DockPanel _playerHost = new();
+
+    // The WebView2 currently shown in the player — paused when the user navigates
+    // away (sidebar destination or a different video tab).
+    private WebView2? _activePlayerWebView;
 
     // One shared WebView2 environment with a persistent user-data folder, so a
     // sign-in done once on youtube.com carries across every player tab and app
@@ -62,10 +73,17 @@ public partial class MainWindow : Window
         _settingsViewModel = settingsViewModel;
         _onRefreshNow = onRefreshNow;
 
-        _actionBar = new Views.VideoActionBar(new VideoActionsViewModel(apiClient, getAccessToken));
+        _actionsVm = new VideoActionsViewModel(apiClient, getAccessToken);
+        _actionBar = new Views.VideoActionBar(_actionsVm);
+
+        var playerFolder = Path.Combine(AppContext.BaseDirectory, "Player");
+        _playerPageHost = new Player.PlayerPageHost(playerFolder);
+        _playerPageHost.Received += OnPlayerEvent;
+        _playerView = new Player.PlayerView(_actionsVm, onOpenOnYouTube: OpenActiveTabOnYouTube);
+
         DockPanel.SetDock(_actionBar, Dock.Top);
         _playerHost.Children.Add(_actionBar);
-        _playerHost.Children.Add(_playerWebViewHost); // fills the rest
+        _playerHost.Children.Add(_playerView); // fills the rest
 
         // Feed panel is built before GroupsPanel so an early group-selection
         // callback can't hit a null field.
@@ -198,6 +216,7 @@ public partial class MainWindow : Window
 
     private void ShowDestination(string dest)
     {
+        PauseActivePlayer();
         _destination = dest;
         _tabs.ActiveTabId = null;
         RefreshVideoTabs();
@@ -222,8 +241,34 @@ public partial class MainWindow : Window
     private void OpenVideo(string videoId, string? title, bool forceNewTab)
     {
         var tab = _tabs.OpenVideo(videoId, title, forceNewTab);
-        GetOrCreateVideoWebView(tab.Id, tab.Url);
+        _tabPlaybackMode[tab.Id] = _settingsViewModel.PlaybackMode;
+        GetOrCreateVideoWebView(tab);
         ShowActiveVideo();
+    }
+
+    private Player.PlaybackMode ModeFor(string tabId) =>
+        _tabPlaybackMode.GetValueOrDefault(tabId, Player.PlaybackMode.Embed);
+
+    /// <summary>Navigates the active tab away from the (failed) embed player to
+    /// the real watch page — the PlayerView fallback's "Open on YouTube".</summary>
+    private void OpenActiveTabOnYouTube(string videoId)
+    {
+        if (_tabs.ActiveTabId is not string id || !_webViewsByTabId.TryGetValue(id, out var wv))
+            return;
+        _tabPlaybackMode[id] = Player.PlaybackMode.FullPage;
+        if (wv.CoreWebView2 != null) wv.Source = new Uri(Player.PlayerPageHost.WatchUrl(videoId));
+        _playerView.ShowFullPage(wv);
+    }
+
+    private void OnPlayerEvent(string tabId, Player.PlayerEvent evt)
+    {
+        if (evt.IsUnembeddable && tabId == _tabs.ActiveTabId)
+            _playerView.ShowUnembeddable();
+    }
+
+    private void PauseActivePlayer()
+    {
+        if (_activePlayerWebView is { } wv) _playerPageHost.Pause(wv);
     }
 
     private void ActivateTab(string tabId)
@@ -249,7 +294,14 @@ public partial class MainWindow : Window
             _tabs.Tabs.FirstOrDefault(t => t.Id == id) is not { } tab)
             return;
 
-        _playerWebViewHost.Content = wv;
+        if (!ReferenceEquals(_activePlayerWebView, wv)) PauseActivePlayer();
+        _activePlayerWebView = wv;
+
+        if (ModeFor(id) == Player.PlaybackMode.Embed)
+            _playerView.ShowEmbed(wv, tab.VideoId, tab.Title);
+        else
+            _playerView.ShowFullPage(wv);
+
         _actionBar.ShowVideo(tab.VideoId);
         ContentHost.Content = _playerHost;
     }
@@ -370,7 +422,14 @@ public partial class MainWindow : Window
         var folder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "YouTubeSubscriptionsToolkit", "WebView2");
-        _webViewEnv = await CoreWebView2Environment.CreateAsync(userDataFolder: folder);
+        // --autoplay-policy: let the IFrame player start on its own so a video
+        // tab begins playing the moment it opens, without a synthetic click.
+        var options = new CoreWebView2EnvironmentOptions
+        {
+            AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required",
+        };
+        _webViewEnv = await CoreWebView2Environment.CreateAsync(
+            browserExecutableFolder: null, userDataFolder: folder, options);
         return _webViewEnv;
     }
 
@@ -393,17 +452,40 @@ public partial class MainWindow : Window
         }
     }
 
-    private WebView2 GetOrCreateVideoWebView(string tabId, string url)
+    private WebView2 GetOrCreateVideoWebView(TabInfo tab)
     {
-        if (_webViewsByTabId.TryGetValue(tabId, out var existing))
+        if (_webViewsByTabId.TryGetValue(tab.Id, out var existing))
         {
-            if (existing.CoreWebView2 != null) existing.Source = new Uri(url);
+            _ = NavigateForModeAsync(existing, tab);
             return existing;
         }
         var webView = new WebView2();
-        _webViewsByTabId[tabId] = webView;
-        _ = InitAndNavigateAsync(webView, url);
+        _webViewsByTabId[tab.Id] = webView;
+        _ = NavigateForModeAsync(webView, tab);
         return webView;
+    }
+
+    /// <summary>
+    /// Points a tab's WebView2 at either the local embed player page or the real
+    /// youtube.com/watch page, per the tab's <see cref="Player.PlaybackMode"/>.
+    /// EnsureCoreWebView2Async(env) must run before any navigation or the view
+    /// silently binds the default environment (see <see cref="InitAndNavigateAsync"/>).
+    /// </summary>
+    private async Task NavigateForModeAsync(WebView2 webView, TabInfo tab)
+    {
+        try
+        {
+            var env = await GetWebViewEnvAsync();
+            await webView.EnsureCoreWebView2Async(env);
+            if (ModeFor(tab.Id) == Player.PlaybackMode.Embed)
+                _playerPageHost.Load(webView, tab.Id, tab.VideoId);
+            else
+                webView.Source = new Uri(tab.Url);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("WebView2 init failed", ex);
+        }
     }
 
     private WebView2 GetOrCreateHomeWebView()
@@ -417,8 +499,11 @@ public partial class MainWindow : Window
     private void DisposeWebView(string tabId)
     {
         if (!_webViewsByTabId.Remove(tabId, out var wv)) return;
+        _tabPlaybackMode.Remove(tabId);
         if (ReferenceEquals(ContentHost.Content, wv)) ContentHost.Content = null;
-        if (ReferenceEquals(_playerWebViewHost.Content, wv)) _playerWebViewHost.Content = null;
+        _playerView.DetachIfShowing(wv);
+        _playerPageHost.Forget(wv);
+        if (ReferenceEquals(_activePlayerWebView, wv)) _activePlayerWebView = null;
         wv.Dispose();
     }
 

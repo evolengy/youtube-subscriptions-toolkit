@@ -9,7 +9,8 @@ using YouTubeDesktopClient.Logging;
 namespace YouTubeDesktopClient.Player;
 
 /// <summary>
-/// Backs the action bar above the video player. Everything here goes through the
+/// Backs the current video: the action bar above the player AND the native
+/// metadata strip on the embed player page. Everything here goes through the
 /// YouTube Data API on the OAuth token the app already holds (scope
 /// <c>.../auth/youtube</c>) — it does NOT depend on a web session inside the
 /// WebView2, so Like / Subscribe / Comment work even when the embedded page shows
@@ -17,7 +18,9 @@ namespace YouTubeDesktopClient.Player;
 ///
 /// Calls wait for the server and only then flip local state, so the bar never
 /// shows a like that didn't actually land. Buttons are disabled while a call is
-/// in flight (<see cref="Busy"/>).
+/// in flight (<see cref="Busy"/>). The metadata (<see cref="Description"/>,
+/// <see cref="PublishedAt"/>, <see cref="ViewCount"/>) rides along on the same
+/// <c>GetVideoActionStateAsync</c> response — no extra quota.
 /// </summary>
 public class VideoActionsViewModel : INotifyPropertyChanged
 {
@@ -38,6 +41,14 @@ public class VideoActionsViewModel : INotifyPropertyChanged
     }
 
     public string ChannelTitle { get; private set; } = "";
+    public string Description { get; private set; } = "";
+    public DateTimeOffset? PublishedAt { get; private set; }
+    public long ViewCount { get; private set; }
+
+    /// <summary>Raised once a video's metadata (title/channel/views/date/description)
+    /// has loaded, so the player page can fill its native strip.</summary>
+    public event Action? MetadataLoaded;
+
     public bool CanInteract { get; private set; }
     public bool IsLiked => _rating == "like";
     public bool IsDisliked => _rating == "dislike";
@@ -62,11 +73,15 @@ public class VideoActionsViewModel : INotifyPropertyChanged
         _videoId = videoId;
         _channelId = "";
         ChannelTitle = "";
+        Description = "";
+        PublishedAt = null;
+        ViewCount = 0;
         _rating = "none";
         _subscriptionId = null;
         CanInteract = false;
         Status = null;
         RaiseAll();
+        MetadataLoaded?.Invoke();
 
         var token = await _getToken();
         if (token is null)
@@ -81,6 +96,9 @@ public class VideoActionsViewModel : INotifyPropertyChanged
             var state = await _api.GetVideoActionStateAsync(token, videoId);
             _channelId = state.ChannelId;
             ChannelTitle = state.ChannelTitle;
+            Description = state.Description;
+            PublishedAt = state.PublishedAt;
+            ViewCount = state.ViewCount;
             _rating = state.Rating;
             _subscriptionId = state.SubscriptionId;
             CanInteract = true;
@@ -94,6 +112,7 @@ public class VideoActionsViewModel : INotifyPropertyChanged
         {
             Busy = false;
             RaiseAll();
+            MetadataLoaded?.Invoke();
         }
     }
 

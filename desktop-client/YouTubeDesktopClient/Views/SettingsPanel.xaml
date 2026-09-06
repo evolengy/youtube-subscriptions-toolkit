@@ -14,6 +14,18 @@
                 </StackPanel>
             </Border>
 
+            <TextBlock Text="Playback" Style="{StaticResource Text.SectionHeader}"/>
+            <Border Style="{StaticResource Card}" Padding="16" Margin="0,0,0,20">
+                <StackPanel>
+                    <RadioButton x:Name="PlaybackEmbed" GroupName="Playback"
+                                 Content="Embedded player (no sign-in needed)"/>
+                    <RadioButton x:Name="PlaybackFullPage" GroupName="Playback" Margin="0,4,0,0"
+                                 Content="Full YouTube page (writes watch history when signed in)"/>
+                    <TextBlock Style="{StaticResource Text.Meta}" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Text="The embedded player uses YouTube's official IFrame API — it never needs a YouTube web login and is not affected by the API quota, but playback is not added to your watch history. Applies to videos opened after the change."/>
+                </StackPanel>
+            </Border>
+
             <TextBlock Text="Feed" Style="{StaticResource Text.SectionHeader}"/>
             <Border Style="{StaticResource Card}" Padding="16">
                 <StackPanel>

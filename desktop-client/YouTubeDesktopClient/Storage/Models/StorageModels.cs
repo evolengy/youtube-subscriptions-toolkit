@@ -39,7 +39,12 @@ public record VideoInfo(
 public record AppSettings(
     string Theme = "System",
     bool AutoExpandFeed = true,
-    string Density = "Comfortable");
+    string Density = "Comfortable",
+    // "Embed"    -> the native page: official IFrame player, no web sign-in, no
+    //               quota, but YouTube watch history is not written.
+    // "FullPage" -> the real youtube.com/watch page in the tab; writes history
+    //               when the shared WebView2 profile is signed in.
+    string PlaybackMode = "Embed");
 
 internal record SettingsFile(
     Dictionary<string, GroupData> Groups,

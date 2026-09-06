@@ -81,9 +81,9 @@ so don't treat their presence as a leak to fix.
 ### The core split: pure logic vs. WPF
 
 Everything testable is a plain class with **no UI dependency**, consumed by a view model, rendered
-by a XAML view. WebView2 hosts unmodified youtube.com pages for anything the public API cannot
-provide (playback, the personalized Home feed). No DOM injection anywhere — that is the whole point
-of this app versus the extension.
+by a XAML view. WebView2 handles what the public API cannot: video playback (YouTube's official
+IFrame player by default, or the unmodified watch page) and the personalized Home feed (rendered
+directly). No DOM injection anywhere — that is the whole point of this app versus the extension.
 
 - `Api/YouTubeApiClient.cs` — thin YouTube Data API v3 wrapper. Non-2xx on read paths becomes
   `YouTubeApiException` (carries status + body) rather than blowing up JSON parsing. Adds ETag
@@ -169,25 +169,41 @@ attached property alone doesn't hold against its `IScrollInfo`).
 - **Sidebar destinations** (Feed / Home / Channels / Settings) are *not* tabs — a `ListBox` in the
   sidebar; `MainWindow` swaps `ContentHost.Content` directly.
 - **Video tabs** are the only real tabs (`Tabs/TabsViewModel.cs`) and live in the top strip:
-  each is its own `WebView2` showing a full `youtube.com/watch?v=` page, with the real (truncated)
-  video title, a close button, middle-click-to-close and a Close / Close others / Close all
-  context menu. Clicking a video reuses the active video tab in place unless `forceNewTab` (from
-  the Feed) or no video tab is active. `PruneWebViews` disposes orphaned instances.
-- **All `WebView2` instances share one `CoreWebView2Environment`** with a persistent user-data
-  folder under `%AppData%\YouTubeSubscriptionsToolkit\WebView2\`, so a youtube.com sign-in done
-  once (via the Home destination) carries across every player tab and app restarts. A `WebView2`
-  must be navigated *after* `EnsureCoreWebView2Async(env)` or it silently binds the default env
-  (see `InitAndNavigateAsync`).
-- **`Views/VideoActionBar.xaml`** sits above the player WebView2: Like / Dislike / Subscribe /
-  Comment, driven by `Player/VideoActionsViewModel.cs` over the Data API on the token the app
-  already holds — works even when the embedded page shows "Sign in". Calls wait for the server
-  then flip local state (no optimistic UI). Watch history is deliberately absent — no API writes it.
+  each is its own `WebView2`, with the real (truncated) video title, a close button,
+  middle-click-to-close and a Close / Close others / Close all context menu. Clicking a video
+  reuses the active video tab in place unless `forceNewTab` (from the Feed) or no video tab is
+  active. `PruneWebViews` disposes orphaned instances.
+- **The player is `Player/PlayerView.xaml`** — the active tab's `WebView2` plus a native
+  title / channel / views·date / description strip, with `Views/VideoActionBar.xaml` docked above
+  it. Two playback modes (`AppSettings.PlaybackMode`, Settings → Playback, default `Embed`):
+  - **`Embed`** — `Player/PlayerPageHost.cs` maps the bundled `Player/player.html` to a virtual
+    `https://ytdesktop.local/` origin and points the tab there; the page runs YouTube's **official
+    IFrame Player API** (`youtube.com/embed`). No YouTube web sign-in, no API quota, and the JS
+    bridge (`postMessage` both ways) gives us `pauseVideo()` — so `MainWindow` pauses the player
+    when you switch tabs/destinations. Cost: playback is **not** written to YouTube watch history.
+    On an un-embeddable video the page's `onError` → `PlayerView` shows an "Open on YouTube"
+    fallback that flips that tab to `FullPage`.
+  - **`FullPage`** — the real `youtube.com/watch?v=` page in the tab (writes history when the
+    shared profile is signed in); the native metadata strip is hidden.
+- **All `WebView2` instances share one `CoreWebView2Environment`** (persistent user-data folder
+  under `%AppData%\YouTubeSubscriptionsToolkit\WebView2\`, plus
+  `--autoplay-policy=no-user-gesture-required` so the embed player starts on its own), so a
+  youtube.com sign-in done once (Home destination, or the Embed fallback) carries across every tab
+  and app restarts. A `WebView2` must be navigated *after* `EnsureCoreWebView2Async(env)` or it
+  silently binds the default env (see `InitAndNavigateAsync` / `NavigateForModeAsync`).
+- **`Player/VideoActionsViewModel.cs`** backs both the action bar (Like / Dislike / Subscribe /
+  Comment) and the metadata strip — one shared instance, handed to `VideoActionBar` and
+  `PlayerView`. All Data-API on the token the app already holds, so it works even when the embed
+  player shows nothing personalised. The `snippet,statistics` video call the action bar already
+  makes now also carries description / publishedAt / viewCount (no extra quota). Calls wait for
+  the server then flip local state (no optimistic UI).
 - **`Diagnostics/NotificationCenter.cs`** (static, like `Logger`) is the one sink for user-facing
   problem messages — API quota/permission errors, failed background syncs. The toolbar bell turns
   red while there are unread items and opens a popup listing them. **Nothing else renders these
   strings inline** — route new error messages here, not to a status label.
 - "Mark watched" is **local-only bookkeeping** — there is no API to mark a video watched on the
-  real account. Actually playing a video in a tab writes real YouTube history for free.
+  real account. Only `FullPage` playback (signed in) writes real YouTube watch history; the
+  default `Embed` player does not.
 - `csproj` deliberately removes the implicit `System.Windows.Forms` / `System.Drawing` global
   usings: `UseWPF` + `UseWindowsForms` together add them and they collide with WPF's
   `Application`/`Timer`/`UserControl`. Only `Tray/TrayIconService.cs` (NotifyIcon) uses WinForms,

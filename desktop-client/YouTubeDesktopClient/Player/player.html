@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #player, iframe { width: 100vw; height: 100vh; border: 0; display: block; }
+</style>
+</head>
+<body>
+<div id="player"></div>
+<script>
+  // Host <-> page bridge. The C# side (PlayerPageHost) posts plain command
+  // strings ("pause" / "play"); we post structured status objects back.
+  var host = (window.chrome && window.chrome.webview) || null;
+  function toHost(msg) { if (host) host.postMessage(msg); }
+
+  var params = new URLSearchParams(location.search);
+  var videoId = params.get('v') || '';
+  var autoplay = params.get('autoplay') === '1' ? 1 : 0;
+
+  var player = null;
+
+  // Loaded by the <script src="https://www.youtube.com/iframe_api"> tag below.
+  window.onYouTubeIframeAPIReady = function () {
+    player = new YT.Player('player', {
+      videoId: videoId,
+      playerVars: {
+        autoplay: autoplay,
+        modestbranding: 1,
+        rel: 0,
+        playsinline: 1
+      },
+      events: {
+        onReady: function (e) {
+          toHost({ type: 'ready' });
+          if (autoplay) e.target.playVideo();
+        },
+        onStateChange: function (e) {
+          // YT.PlayerState: -1 unstarted, 0 ended, 1 playing, 2 paused,
+          // 3 buffering, 5 cued.
+          toHost({ type: 'state', state: e.data });
+        },
+        onError: function (e) {
+          // e.data error codes (YouTube IFrame API):
+          //   2   - invalid videoId parameter
+          //   5   - HTML5 player error
+          //   100 - video not found / removed / private
+          //   101 - owner disallows playback in embedded players
+          //   150 - same as 101
+          // The host decides which of these show the "open on YouTube"
+          // fallback vs. which are just logged. We forward the raw code.
+          toHost({ type: 'error', code: e.data });
+        }
+      }
+    });
+  };
+
+  if (host) {
+    host.addEventListener('message', function (ev) {
+      var cmd = ev.data;
+      if (!player) return;
+      if (cmd === 'pause' && player.pauseVideo) player.pauseVideo();
+      else if (cmd === 'play' && player.playVideo) player.playVideo();
+    });
+  }
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
