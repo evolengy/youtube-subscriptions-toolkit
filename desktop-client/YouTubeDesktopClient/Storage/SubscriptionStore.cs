@@ -100,6 +100,21 @@ public class SubscriptionStore
         }
     }
 
+    public AppSettings GetAppSettings()
+    {
+        lock (_lock)
+            return ReadSettings().App ?? new AppSettings();
+    }
+
+    public void SaveAppSettings(AppSettings appSettings)
+    {
+        lock (_lock)
+        {
+            var settings = ReadSettings();
+            WriteSettings(settings with { App = appSettings });
+        }
+    }
+
     public HashSet<string> GetWatchedVideoIds()
     {
         lock (_lock)
@@ -147,6 +162,35 @@ public class SubscriptionStore
         {
             var current = ReadCache();
             WriteCache(current with { VideosCache = cache });
+        }
+    }
+
+    /// <summary>
+    /// Records a page of *older* history for one channel that FeedExpansionService
+    /// just fetched: merges the videos into the channel's cached list and moves
+    /// its uploads cursor forward (or marks the history exhausted). Both cache
+    /// sections are updated under one lock so a concurrent sync can't interleave.
+    /// </summary>
+    public void AppendChannelHistory(string channelId, IReadOnlyList<VideoInfo> olderVideos,
+        string? nextPageToken, bool historyComplete)
+    {
+        lock (_lock)
+        {
+            var cache = ReadCache();
+
+            var videos = new Dictionary<string, List<VideoInfo>>(cache.VideosCache);
+            videos.TryGetValue(channelId, out var existing);
+            videos[channelId] = VideoMerge.Dedup(existing, olderVideos);
+
+            var subs = new Dictionary<string, SubscriptionCacheEntry>(cache.SubscriptionsCache);
+            if (subs.TryGetValue(channelId, out var entry))
+                subs[channelId] = entry with
+                {
+                    UploadsNextPageToken = nextPageToken,
+                    HistoryComplete = historyComplete,
+                };
+
+            WriteCache(cache with { SubscriptionsCache = subs, VideosCache = videos });
         }
     }
 

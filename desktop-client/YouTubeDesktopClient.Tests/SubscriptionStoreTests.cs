@@ -94,6 +94,55 @@ public class SubscriptionStoreTests : IDisposable
     }
 
     [Fact]
+    public void GetAppSettings_ReturnsDefaults_WhenFileDoesNotExist()
+    {
+        var settings = _store.GetAppSettings();
+
+        Assert.Equal("System", settings.Theme);
+        Assert.True(settings.AutoExpandFeed);
+        Assert.Equal("Comfortable", settings.Density);
+    }
+
+    [Fact]
+    public void SaveAppSettings_ThenGetAppSettings_RoundTrips()
+    {
+        _store.SaveAppSettings(new AppSettings("Dark", false, "Compact"));
+
+        var loaded = _store.GetAppSettings();
+
+        Assert.Equal("Dark", loaded.Theme);
+        Assert.False(loaded.AutoExpandFeed);
+        Assert.Equal("Compact", loaded.Density);
+    }
+
+    [Fact]
+    public void SaveAppSettings_PreservesExistingGroups()
+    {
+        _store.SaveGroups(new Dictionary<string, GroupData>
+        {
+            ["g1"] = new GroupData("Music", new List<string> { "UC1" }),
+        });
+
+        _store.SaveAppSettings(new AppSettings("Light"));
+
+        Assert.Equal("Music", _store.GetGroups()["g1"].Name);
+        Assert.Equal("Light", _store.GetAppSettings().Theme);
+    }
+
+    [Fact]
+    public void GetAppSettings_ReturnsDefaults_WhenSettingsFilePredatesTheAppSection()
+    {
+        // A settings.json written before AppSettings existed: Groups + WatchedVideoIds only.
+        File.WriteAllText(Path.Combine(_tempDir, "settings.json"),
+            "{\"Groups\":{},\"WatchedVideoIds\":[]}");
+
+        var settings = _store.GetAppSettings();
+
+        Assert.Equal("System", settings.Theme);
+        Assert.True(settings.AutoExpandFeed);
+    }
+
+    [Fact]
     public void GetGroups_ReturnsEmpty_WhenSettingsFileIsCorrupt()
     {
         File.WriteAllText(Path.Combine(_tempDir, "settings.json"), "{ this is not json");
