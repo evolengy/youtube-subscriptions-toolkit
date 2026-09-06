@@ -1,6 +1,7 @@
 // Views/GroupsPanel.xaml.cs
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using YouTubeDesktopClient.Groups;
 
 namespace YouTubeDesktopClient.Views;
@@ -31,22 +32,35 @@ public partial class GroupsPanel : UserControl
         try
         {
             GroupList.Items.Clear();
-            GroupList.Items.Add("All subscriptions");
+            GroupList.Items.Add(new ListBoxItem { Content = "All subscriptions", Padding = new Thickness(8, 6, 8, 6) });
 
             foreach (var (groupId, group) in _viewModel.GetGroups())
             {
-                var row = new StackPanel { Orientation = Orientation.Horizontal };
-                row.Children.Add(new TextBlock
+                var row = new DockPanel { LastChildFill = true };
+
+                // Trash glyph (Segoe Fluent Icons E74D), borderless, right-aligned.
+                var deleteButton = new Button
                 {
-                    Text = $"{group.Name} ({group.ChannelIds.Count})",
-                    Width = 140,
-                    VerticalAlignment = VerticalAlignment.Center,
-                });
-                var deleteButton = new Button { Content = "Delete" };
+                    Content = "",
+                    FontFamily = (FontFamily)FindResource("Font.Icon"),
+                    Style = (Style)FindResource("Button.Icon"),
+                    FontSize = 13,
+                    Width = 26,
+                    Height = 24,
+                    ToolTip = "Delete group",
+                };
                 deleteButton.Click += (_, _) => DeleteGroup(groupId);
+                DockPanel.SetDock(deleteButton, Dock.Right);
                 row.Children.Add(deleteButton);
 
-                var item = new ListBoxItem { Content = row, Tag = groupId };
+                row.Children.Add(new TextBlock
+                {
+                    Text = $"{group.Name}  ({group.ChannelIds.Count})",
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                });
+
+                var item = new ListBoxItem { Content = row, Tag = groupId, Padding = new Thickness(8, 4, 4, 4) };
                 GroupList.Items.Add(item);
                 if (groupId == _selectedGroupId) GroupList.SelectedItem = item;
             }

@@ -8,11 +8,28 @@ using YouTubeDesktopClient.Channels;
 using YouTubeDesktopClient.Feed;
 using YouTubeDesktopClient.Groups;
 using YouTubeDesktopClient.Logging;
+using YouTubeDesktopClient.Settings;
 using YouTubeDesktopClient.Storage;
 using YouTubeDesktopClient.Sync;
+using YouTubeDesktopClient.Themes;
 using YouTubeDesktopClient.Tray;
 
 namespace YouTubeDesktopClient;
+
+/// <summary>Forwards WPF binding-trace warnings/errors to the app log.</summary>
+internal sealed class BindingErrorListener : System.Diagnostics.TraceListener
+{
+    private readonly System.Text.StringBuilder _buffer = new();
+
+    public override void Write(string? message) => _buffer.Append(message);
+
+    public override void WriteLine(string? message)
+    {
+        _buffer.Append(message);
+        Logger.LogError($"WPF binding: {_buffer}");
+        _buffer.Clear();
+    }
+}
 
 public partial class App : Application
 {
@@ -31,12 +48,25 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Surface failures that otherwise only reach an attached debugger: an
+        // unhandled exception on the UI thread, and every WPF data-binding
+        // error (a mistyped Binding path, a missing DynamicResource key). Both
+        // go to the same log file as everything else.
+        DispatcherUnhandledException += (_, args) =>
+            Logger.LogError("Unhandled UI-thread exception", args.Exception);
+        System.Diagnostics.PresentationTraceSources.Refresh();
+        System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Add(new BindingErrorListener());
+        System.Diagnostics.PresentationTraceSources.DataBindingSource.Switch.Level = System.Diagnostics.SourceLevels.Warning;
+
         var appDataDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "YouTubeSubscriptionsToolkit");
         var store = new SubscriptionStore(
             Path.Combine(appDataDir, "settings.json"),
             Path.Combine(appDataDir, "cache.json"));
+
+        // Before any window is shown, so the first paint is already themed.
+        ThemeManager.Initialize(store.GetAppSettings().Theme);
         var tokenStore = new TokenStore(Path.Combine(appDataDir, "token.bin"));
         var authService = new AuthService(OAuthClientId, OAuthClientSecret, tokenStore);
         var apiClient = new YouTubeApiClient(new HttpClient());
@@ -45,11 +75,16 @@ public partial class App : Application
 
         _sync = new BackgroundSyncService(apiClient, store, getAccessToken);
 
+        var appSettingsViewModel = new AppSettingsViewModel(store);
+        var feedExpansion = new FeedExpansionService(apiClient, store, getAccessToken);
         var groupsViewModel = new GroupsViewModel(store);
-        var feedViewModel = new FeedViewModel(store);
+        var feedViewModel = new FeedViewModel(store, feedExpansion,
+            isAutoExpandEnabled: () => appSettingsViewModel.AutoExpandFeed);
         var channelViewModel = new ChannelManagementViewModel(apiClient, store, getAccessToken);
 
-        _mainWindow = new MainWindow(groupsViewModel, feedViewModel, channelViewModel);
+        _mainWindow = new MainWindow(groupsViewModel, feedViewModel, channelViewModel,
+            appSettingsViewModel, store, apiClient, getAccessToken,
+            onRefreshNow: () => _ = RefreshNowAsync());
         _mainWindow.Show();
 
         // BackgroundSyncService raises SyncCompleted on the timer's threadpool
@@ -84,7 +119,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             Logger.LogError("Manual refresh failed", ex);
-            MessageBox.Show($"Refresh failed: {ex.Message}");
+            Diagnostics.NotificationCenter.Report($"Refresh failed: {ex.Message}");
         }
     }
 

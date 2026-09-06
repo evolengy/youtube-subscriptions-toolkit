@@ -1,17 +1,24 @@
 <UserControl x:Class="YouTubeDesktopClient.Views.GroupsPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <StackPanel Margin="8">
-        <TextBlock Text="Groups" FontWeight="Bold" Margin="0,0,0,8"/>
-        <ListBox x:Name="GroupList" MaxHeight="200" SelectionChanged="GroupList_SelectionChanged"/>
-        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-            <TextBox x:Name="NewGroupName" Width="140"/>
-            <Button Content="Add" Click="AddGroup_Click" Margin="4,0,0,0"/>
+    <Border Background="Transparent">
+        <StackPanel Margin="12,4,12,14">
+            <TextBlock Text="GROUPS" Style="{StaticResource Text.SectionHeader}"/>
+            <ListBox x:Name="GroupList" MaxHeight="260" SelectionChanged="GroupList_SelectionChanged"
+                     Background="Transparent" BorderThickness="0"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                <TextBox x:Name="NewGroupName" Width="132"/>
+                <Button x:Name="AddGroupButton" Content="Add" Click="AddGroup_Click" Margin="6,0,0,0"/>
+            </StackPanel>
+            <Button x:Name="RenameGroupButton" Content="Rename selected" Click="RenameGroup_Click"
+                    Margin="0,6,0,0" HorizontalAlignment="Left" IsEnabled="False"/>
+
+            <TextBlock x:Name="ChannelsHeader" Text="CHANNELS IN GROUP"
+                       Style="{StaticResource Text.SectionHeader}"
+                       Margin="0,18,0,6" Visibility="Collapsed"/>
+            <ListBox x:Name="ChannelList" MaxHeight="320" Visibility="Collapsed"
+                     Background="Transparent" BorderThickness="0"/>
         </StackPanel>
-        <Button x:Name="RenameGroupButton" Content="Rename selected" Click="RenameGroup_Click"
-                Margin="0,4,0,0" HorizontalAlignment="Left" IsEnabled="False"/>
-        <TextBlock x:Name="ChannelsHeader" Text="Channels in group" FontWeight="Bold"
-                   Margin="0,12,0,4" Visibility="Collapsed"/>
-        <ListBox x:Name="ChannelList" MaxHeight="320" Visibility="Collapsed"/>
-    </StackPanel>
+    </Border>
 </UserControl>
