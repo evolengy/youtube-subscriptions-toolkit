@@ -100,15 +100,19 @@ public class YouTubeApiClient : IYouTubeApiClient
     }
 
     public async Task<PlaylistItemsResult> FetchRecentUploadIdsAsync(
-        string accessToken, string uploadsPlaylistId, string? previousEtag, int maxResults = 15)
+        string accessToken, string uploadsPlaylistId, string? previousEtag, int maxResults = 15,
+        string? pageToken = null)
     {
         var request = BuildRequest(HttpMethod.Get, "playlistItems", accessToken, new()
         {
             ["part"] = "contentDetails",
             ["playlistId"] = uploadsPlaylistId,
             ["maxResults"] = maxResults.ToString(),
+            ["pageToken"] = pageToken,
         });
-        if (previousEtag != null)
+        // Conditional GET only makes sense for the first page — a deeper page is
+        // addressed by pageToken and its response carries its own, unrelated etag.
+        if (previousEtag != null && pageToken == null)
             request.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Parse(previousEtag));
 
         using var response = await _http.SendAsync(request);
@@ -120,7 +124,8 @@ public class YouTubeApiClient : IYouTubeApiClient
             .Select(item => item.GetProperty("contentDetails").GetProperty("videoId").GetString()!)
             .ToList();
         var etag = response.Headers.ETag?.ToString();
-        return new PlaylistItemsResult(videoIds, etag, NotModified: false);
+        var nextPageToken = root.TryGetProperty("nextPageToken", out var next) ? next.GetString() : null;
+        return new PlaylistItemsResult(videoIds, etag, NotModified: false, nextPageToken);
     }
 
     public async Task<List<VideoInfo>> FetchVideosDetailsAsync(string accessToken, List<string> videoIds)
@@ -179,6 +184,100 @@ public class YouTubeApiClient : IYouTubeApiClient
         using var response = await _http.SendAsync(request);
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task<VideoActionState> GetVideoActionStateAsync(string accessToken, string videoId)
+    {
+        // Owner channel (snippet has both id and title).
+        var ownerReq = BuildRequest(HttpMethod.Get, "videos", accessToken, new()
+        {
+            ["part"] = "snippet",
+            ["id"] = videoId,
+        });
+        using var ownerResp = await _http.SendAsync(ownerReq);
+        var ownerRoot = await ReadJsonRootAsync(ownerResp);
+        var items = ownerRoot.GetProperty("items");
+        if (items.GetArrayLength() == 0)
+            throw new YouTubeApiException(HttpStatusCode.NotFound, $"video {videoId} not found");
+        var snippet = items[0].GetProperty("snippet");
+        var channelId = snippet.GetProperty("channelId").GetString()!;
+        var channelTitle = snippet.GetProperty("channelTitle").GetString() ?? "";
+
+        // Current rating.
+        var rateReq = BuildRequest(HttpMethod.Get, "videos/getRating", accessToken, new()
+        {
+            ["id"] = videoId,
+        });
+        using var rateResp = await _http.SendAsync(rateReq);
+        var rateRoot = await ReadJsonRootAsync(rateResp);
+        var ratingItems = rateRoot.GetProperty("items");
+        var rating = ratingItems.GetArrayLength() > 0
+            ? ratingItems[0].GetProperty("rating").GetString() ?? "none"
+            : "none";
+
+        // Existing subscription to the owner, if any.
+        var subReq = BuildRequest(HttpMethod.Get, "subscriptions", accessToken, new()
+        {
+            ["part"] = "id",
+            ["forChannelId"] = channelId,
+            ["mine"] = "true",
+            ["maxResults"] = "1",
+        });
+        using var subResp = await _http.SendAsync(subReq);
+        var subRoot = await ReadJsonRootAsync(subResp);
+        var subItems = subRoot.GetProperty("items");
+        var subscriptionId = subItems.GetArrayLength() > 0 ? subItems[0].GetProperty("id").GetString() : null;
+
+        return new VideoActionState(channelId, channelTitle, rating, subscriptionId);
+    }
+
+    public async Task RateVideoAsync(string accessToken, string videoId, string rating)
+    {
+        var request = BuildRequest(HttpMethod.Post, "videos/rate", accessToken, new()
+        {
+            ["id"] = videoId,
+            ["rating"] = rating,
+        });
+        using var response = await _http.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+            throw new YouTubeApiException(response.StatusCode, await response.Content.ReadAsStringAsync());
+    }
+
+    public async Task<string> SubscribeAsync(string accessToken, string channelId)
+    {
+        var request = BuildRequest(HttpMethod.Post, "subscriptions", accessToken, new()
+        {
+            ["part"] = "snippet",
+        });
+        request.Content = JsonBody(new
+        {
+            snippet = new { resourceId = new { kind = "youtube#channel", channelId } },
+        });
+        using var response = await _http.SendAsync(request);
+        var root = await ReadJsonRootAsync(response);
+        return root.GetProperty("id").GetString()!;
+    }
+
+    public async Task PostCommentAsync(string accessToken, string videoId, string text)
+    {
+        var request = BuildRequest(HttpMethod.Post, "commentThreads", accessToken, new()
+        {
+            ["part"] = "snippet",
+        });
+        request.Content = JsonBody(new
+        {
+            snippet = new
+            {
+                videoId,
+                topLevelComment = new { snippet = new { textOriginal = text } },
+            },
+        });
+        using var response = await _http.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+            throw new YouTubeApiException(response.StatusCode, await response.Content.ReadAsStringAsync());
+    }
+
+    private static StringContent JsonBody(object value) =>
+        new(JsonSerializer.Serialize(value), System.Text.Encoding.UTF8, "application/json");
 
     private static IEnumerable<List<T>> Chunk<T>(List<T> source, int size)
     {
