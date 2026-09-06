@@ -92,12 +92,17 @@ by a XAML view. WebView2 handles what the public API cannot: video playback (You
 IFrame player by default, or the unmodified watch page) and the personalized Home feed (rendered
 directly). No DOM injection anywhere — that is the whole point of this app versus the extension.
 
-- `Api/YouTubeApiClient.cs` — thin YouTube Data API v3 wrapper. Non-2xx on read paths becomes
-  `YouTubeApiException` (carries status + body) rather than blowing up JSON parsing. Adds ETag
-  support the extension's `youtubeApi.js` lacks. `FetchRecentUploadIdsAsync` threads a `pageToken`
-  for backward history walks; the player-action endpoints (`GetVideoActionStateAsync`,
-  `RateVideoAsync`, `SubscribeAsync`, `PostCommentAsync`) are write calls on the same
-  `.../auth/youtube` token (POST bodies via the `JsonBody` helper).
+- `Api/YouTubeApiClient.cs` — thin YouTube Data API v3 wrapper implementing `IYouTubeApiClient`
+  (sync), `IYouTubeAccountApi`, `IYouTubePlaylistApi`, `IYouTubeCommentApi` (each split off so a
+  view model's test fake only stubs what it uses). Non-2xx on read paths becomes
+  `YouTubeApiException` (carries status + body) via `ReadJsonRootAsync`; writes go through
+  `EnsureOkAsync`; `ApiErrorText.Describe` turns either into one `NotificationCenter` sentence
+  (quota / scope / generic). ETag support the extension's `youtubeApi.js` lacks.
+- **OAuth scope is `.../auth/youtube.force-ssl`** (`Auth/AuthService.cs`), NOT the plain
+  `.../auth/youtube` — comment reads/writes (`commentThreads.*`, `comments.*`) 403 with
+  `ACCESS_TOKEN_SCOPE_INSUFFICIENT` on the plain scope. `force-ssl` is a superset, so
+  subscriptions / playlists / ratings still work. **Changing it invalidates old consent — the
+  user must sign out and back in once.**
 - `Storage/SubscriptionStore.cs` — the two JSON files. `settings.json` = user-curated data
   (groups, watched ids, **and the `App` section**: theme / feed density / auto-expand, via
   `GetAppSettings` / `SaveAppSettings`) — the file a future sync backend would target. `cache.json` =
@@ -218,11 +223,17 @@ attached property alone doesn't hold against `IScrollInfo`). Each consumer suppl
   and app restarts. A `WebView2` must be navigated *after* `EnsureCoreWebView2Async(env)` or it
   silently binds the default env (see `InitAndNavigateAsync` / `NavigateForModeAsync`).
 - **`Player/VideoActionsViewModel.cs`** backs both the action bar (Like / Dislike / Subscribe /
-  Comment) and the metadata strip — one shared instance, handed to `VideoActionBar` and
-  `PlayerView`. All Data-API on the token the app already holds, so it works even when the embed
-  player shows nothing personalised. The `snippet,statistics` video call the action bar already
-  makes now also carries description / publishedAt / viewCount (no extra quota). Calls wait for
-  the server then flip local state (no optimistic UI).
+  Save) and the metadata strip — one shared instance, handed to `VideoActionBar` and `PlayerView`.
+  All Data-API on the token the app already holds, so it works even when the embed player shows
+  nothing personalised. The `snippet,statistics` video call the action bar already makes also
+  carries description / publishedAt / viewCount (no extra quota). Calls wait for the server then
+  flip local state (no optimistic UI). **Save** raises `SaveRequested` → `MainWindow` opens the
+  themed playlist picker (existing playlists + "Manage playlists…").
+- **`Player/CommentsView.xaml`** sits under the metadata strip in embed mode (hidden in FullPage):
+  `Player/CommentsViewModel` (`IYouTubeCommentApi`) lazy-loads `commentThreads.list` on first
+  reveal, paginates, loads a thread's full replies on the "view all" toggle, and posts comments
+  / replies (prepending a local copy — `commentThreads.list` lags a write). The compose box lives
+  here now, not in the action bar.
 - **`Diagnostics/NotificationCenter.cs`** (static, like `Logger`) is the one sink for user-facing
   problem messages — API quota/permission errors, failed background syncs. The toolbar bell turns
   red while there are unread items and opens a popup listing them. **Nothing else renders these

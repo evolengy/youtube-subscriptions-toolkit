@@ -1,0 +1,19 @@
+<UserControl x:Class="YouTubeDesktopClient.Player.CommentsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel Background="{DynamicResource Brush.Canvas}">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource Brush.Surface}"
+                BorderBrush="{DynamicResource Brush.BorderSubtle}" BorderThickness="0,1,0,1"
+                Padding="16,10">
+            <DockPanel x:Name="ComposeRow" LastChildFill="True">
+                <Button x:Name="ComposeButton" DockPanel.Dock="Right" Content="Comment" Padding="12,5"
+                        Margin="8,0,0,0" Click="Compose_Click"/>
+                <TextBox x:Name="ComposeBox" ToolTip="Add a public comment as your account"/>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="ThreadList" Margin="16,10,16,16"/>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

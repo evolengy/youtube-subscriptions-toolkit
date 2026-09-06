@@ -13,6 +13,8 @@ public static class ApiErrorText
     {
         YouTubeApiException { StatusCode: HttpStatusCode.Forbidden } e when IsQuota(e) =>
             "YouTube API daily quota is used up — this works again after it resets (~midnight US Pacific).",
+        YouTubeApiException { StatusCode: HttpStatusCode.Forbidden } e when IsScope(e) =>
+            "Sign out and back in — the account needs to re-grant permission for this.",
         YouTubeApiException { StatusCode: HttpStatusCode.Forbidden } => "YouTube rejected the request.",
         YouTubeApiException { StatusCode: HttpStatusCode.Unauthorized } => "Session expired — sign in again.",
         YouTubeApiException { StatusCode: HttpStatusCode.NotFound } => "That item no longer exists on YouTube.",
@@ -26,5 +28,12 @@ public static class ApiErrorText
         return body.Contains("quotaExceeded", StringComparison.OrdinalIgnoreCase)
             || body.Contains("dailyLimitExceeded", StringComparison.OrdinalIgnoreCase)
             || body.Contains("rateLimitExceeded", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsScope(YouTubeApiException e)
+    {
+        var body = e.ResponseBody ?? string.Empty;
+        return body.Contains("insufficientPermissions", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("SCOPE_INSUFFICIENT", StringComparison.OrdinalIgnoreCase);
     }
 }

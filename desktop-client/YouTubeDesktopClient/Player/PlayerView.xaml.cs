@@ -19,16 +19,19 @@ public partial class PlayerView : UserControl
 {
     private readonly VideoActionsViewModel _actions;
     private readonly Action<string> _onOpenOnYouTube;   // navigate this tab's WebView2 to the watch page
+    private readonly CommentsView _comments;
 
     private string _videoId = "";
     private string _tabTitle = "";
 
-    public PlayerView(VideoActionsViewModel actions, Action<string> onOpenOnYouTube)
+    public PlayerView(VideoActionsViewModel actions, CommentsView comments, Action<string> onOpenOnYouTube)
     {
         InitializeComponent();
         _actions = actions;
+        _comments = comments;
         _onOpenOnYouTube = onOpenOnYouTube;
         _actions.MetadataLoaded += RefreshMeta;
+        CommentsHost.Content = _comments;
     }
 
     /// <summary>Embed mode: show the player page for <paramref name="videoId"/>
@@ -41,7 +44,10 @@ public partial class PlayerView : UserControl
         Reparent(webView);
         FallbackOverlay.Visibility = Visibility.Collapsed;
         MetaStrip.Visibility = Visibility.Visible;
+        CommentsHost.Visibility = Visibility.Visible;
+        CommentsRow.Height = new GridLength(2, GridUnitType.Star);
         RefreshMeta();
+        _comments.Show(videoId);
     }
 
     /// <summary>FullPage mode: the WebView is the whole view.</summary>
@@ -50,6 +56,8 @@ public partial class PlayerView : UserControl
         Reparent(webView);
         FallbackOverlay.Visibility = Visibility.Collapsed;
         MetaStrip.Visibility = Visibility.Collapsed;
+        CommentsHost.Visibility = Visibility.Collapsed;
+        CommentsRow.Height = new GridLength(0);
     }
 
     /// <summary>Called when the embedded player reports it can't play the current

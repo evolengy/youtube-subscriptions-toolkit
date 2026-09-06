@@ -3,8 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid Background="{DynamicResource Brush.Canvas}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="3*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="2*" x:Name="CommentsRow"/>
         </Grid.RowDefinitions>
 
         <!-- The active tab's WebView2 is re-parented in here. On top of it, an
@@ -48,5 +49,8 @@
                 </ScrollViewer>
             </StackPanel>
         </Border>
+
+        <!-- Comments (embed mode only) — a CommentsView is dropped in here. -->
+        <ContentControl x:Name="CommentsHost" Grid.Row="2"/>
     </Grid>
 </UserControl>

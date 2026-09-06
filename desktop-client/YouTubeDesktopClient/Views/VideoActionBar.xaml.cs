@@ -8,11 +8,11 @@ using YouTubeDesktopClient.Player;
 namespace YouTubeDesktopClient.Views;
 
 /// <summary>
-/// The Like / Dislike / Subscribe / Comment strip above the player. Pure view:
-/// every decision lives in <see cref="VideoActionsViewModel"/>; this just reflects
-/// its state and forwards clicks. Handlers are async void because they are UI
-/// event handlers — the view model swallows and reports failures, so nothing
-/// escapes here.
+/// The Like / Dislike / Subscribe / Save strip above the player. Pure view: every
+/// decision lives in <see cref="VideoActionsViewModel"/>; this just reflects its
+/// state and forwards clicks. Commenting moved to <see cref="Player.CommentsView"/>
+/// under the player. Handlers are async void because they are UI event handlers —
+/// the view model swallows and reports failures, so nothing escapes here.
 /// </summary>
 public partial class VideoActionBar : UserControl
 {
@@ -34,7 +34,6 @@ public partial class VideoActionBar : UserControl
     public async void ShowVideo(string videoId)
     {
         _videoId = videoId;
-        CommentBox.Clear();
         await _vm.LoadAsync(videoId);
     }
 
@@ -51,7 +50,7 @@ public partial class VideoActionBar : UserControl
 
         var live = _vm.CanInteract && !_vm.Busy;
         LikeButton.IsEnabled = DislikeButton.IsEnabled = SubscribeButton.IsEnabled = live;
-        CommentButton.IsEnabled = CommentBox.IsEnabled = live;
+        SaveButton.IsEnabled = live;
 
         LikeButton.Foreground = _vm.IsLiked ? Brush("Brush.Accent") : Brush("Brush.TextSecondary");
         DislikeButton.Foreground = _vm.IsDisliked ? Brush("Brush.Accent") : Brush("Brush.TextSecondary");
@@ -72,11 +71,4 @@ public partial class VideoActionBar : UserControl
     private async void Dislike_Click(object sender, RoutedEventArgs e) => await _vm.ToggleRatingAsync("dislike");
 
     private async void Subscribe_Click(object sender, RoutedEventArgs e) => await _vm.ToggleSubscribeAsync();
-
-    private async void Comment_Click(object sender, RoutedEventArgs e)
-    {
-        var text = CommentBox.Text;
-        await _vm.PostCommentAsync(text);
-        if (_vm.Status == "Comment posted.") CommentBox.Clear();
-    }
 }

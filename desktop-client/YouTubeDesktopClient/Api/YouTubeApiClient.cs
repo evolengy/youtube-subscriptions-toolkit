@@ -6,7 +6,7 @@ using YouTubeDesktopClient.Storage.Models;
 
 namespace YouTubeDesktopClient.Api;
 
-public class YouTubeApiClient : IYouTubeApiClient, IYouTubeAccountApi, IYouTubePlaylistApi
+public class YouTubeApiClient : IYouTubeApiClient, IYouTubeAccountApi, IYouTubePlaylistApi, IYouTubeCommentApi
 {
     private const string ApiBase = "https://www.googleapis.com/youtube/v3";
     private readonly HttpClient _http;
@@ -309,9 +309,93 @@ public class YouTubeApiClient : IYouTubeApiClient, IYouTubeAccountApi, IYouTubeP
             },
         });
         using var response = await _http.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
-            throw new YouTubeApiException(response.StatusCode, await response.Content.ReadAsStringAsync());
+        await EnsureOkAsync(response);
     }
+
+    // ---- comments (IYouTubeCommentApi) -------------------------------
+
+    public async Task<CommentPage> ListCommentThreadsAsync(
+        string accessToken, string videoId, string? pageToken = null)
+    {
+        var request = BuildRequest(HttpMethod.Get, "commentThreads", accessToken, new()
+        {
+            ["part"] = "snippet,replies",
+            ["videoId"] = videoId,
+            ["maxResults"] = "20",
+            ["order"] = "relevance",
+            ["pageToken"] = pageToken,
+        });
+        using var response = await _http.SendAsync(request);
+        var root = await ReadJsonRootAsync(response);
+
+        var threads = new List<CommentThread>();
+        foreach (var item in root.GetProperty("items").EnumerateArray())
+        {
+            var snippet = item.GetProperty("snippet");
+            var top = ParseComment(snippet.GetProperty("topLevelComment"));
+            var previews = new List<CommentInfo>();
+            if (item.TryGetProperty("replies", out var replies) &&
+                replies.TryGetProperty("comments", out var cs))
+                foreach (var c in cs.EnumerateArray()) previews.Add(ParseComment(c));
+
+            threads.Add(new CommentThread(
+                item.GetProperty("id").GetString()!,
+                top,
+                snippet.TryGetProperty("totalReplyCount", out var trc) ? trc.GetInt32() : 0,
+                previews));
+        }
+
+        return new CommentPage(threads, NextToken(root));
+    }
+
+    public async Task<ReplyPage> ListRepliesAsync(string accessToken, string parentId, string? pageToken = null)
+    {
+        var request = BuildRequest(HttpMethod.Get, "comments", accessToken, new()
+        {
+            ["part"] = "snippet",
+            ["parentId"] = parentId,
+            ["maxResults"] = "100",
+            ["pageToken"] = pageToken,
+        });
+        using var response = await _http.SendAsync(request);
+        var root = await ReadJsonRootAsync(response);
+
+        var replies = root.GetProperty("items").EnumerateArray().Select(ParseComment).ToList();
+        return new ReplyPage(replies, NextToken(root));
+    }
+
+    public async Task ReplyToCommentAsync(string accessToken, string parentId, string text)
+    {
+        var request = BuildRequest(HttpMethod.Post, "comments", accessToken, new()
+        {
+            ["part"] = "snippet",
+        });
+        request.Content = JsonBody(new { snippet = new { parentId, textOriginal = text } });
+        using var response = await _http.SendAsync(request);
+        await EnsureOkAsync(response);
+    }
+
+    private static CommentInfo ParseComment(JsonElement commentOrThread)
+    {
+        // Accepts either a `comment` resource or a thread's topLevelComment (both
+        // wrap the fields in `snippet`).
+        var s = commentOrThread.GetProperty("snippet");
+        DateTimeOffset published = s.TryGetProperty("publishedAt", out var p)
+            && p.TryGetDateTimeOffset(out var dt) ? dt : default;
+        // textOriginal is plain; textDisplay is HTML (<br>, <a>). We render text.
+        var text = s.TryGetProperty("textOriginal", out var to) ? to.GetString()
+                 : s.TryGetProperty("textDisplay", out var td) ? td.GetString() : "";
+        return new CommentInfo(
+            commentOrThread.GetProperty("id").GetString()!,
+            s.TryGetProperty("authorDisplayName", out var a) ? a.GetString() ?? "" : "",
+            s.TryGetProperty("authorProfileImageUrl", out var img) ? img.GetString() : null,
+            text ?? "",
+            s.TryGetProperty("likeCount", out var lc) ? lc.GetInt64() : 0,
+            published);
+    }
+
+    private static string? NextToken(JsonElement root) =>
+        root.TryGetProperty("nextPageToken", out var n) ? n.GetString() : null;
 
     // ---- playlists (IYouTubePlaylistApi) -----------------------------
 

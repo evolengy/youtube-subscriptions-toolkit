@@ -10,7 +10,11 @@ public class AuthService : IAuthService
 {
     private const string AuthEndpoint = "https://accounts.google.com/o/oauth2/v2/auth";
     private const string TokenEndpoint = "https://oauth2.googleapis.com/token";
-    private const string Scope = "https://www.googleapis.com/auth/youtube";
+    // youtube.force-ssl is a superset of the plain youtube scope AND is the one
+    // comment reads/writes (commentThreads.*, comments.*) require — the plain
+    // scope 403s them with ACCESS_TOKEN_SCOPE_INSUFFICIENT. Changing this
+    // invalidates old consent: users must re-authorize once.
+    private const string Scope = "https://www.googleapis.com/auth/youtube.force-ssl";
 
     private readonly string _clientId;
     // Google's token endpoint requires client_secret even for a "Desktop

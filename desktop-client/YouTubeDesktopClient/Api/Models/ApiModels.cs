@@ -40,3 +40,17 @@ public record PlaylistSummary(
 public record PlaylistItemEntry(
     string PlaylistItemId, string VideoId, string Title, string? ThumbnailUrl,
     string ChannelTitle, int Position);
+
+// ---- comments ----
+
+public record CommentInfo(
+    string Id, string Author, string? AuthorAvatarUrl, string Text, long LikeCount, DateTimeOffset PublishedAt);
+
+/// <summary>A top-level comment plus a preview of its replies (the API returns up
+/// to ~5 inline). <see cref="TotalReplyCount"/> drives the "view N replies" toggle.</summary>
+public record CommentThread(
+    string Id, CommentInfo Top, int TotalReplyCount, IReadOnlyList<CommentInfo> PreviewReplies);
+
+public record CommentPage(IReadOnlyList<CommentThread> Threads, string? NextPageToken);
+
+public record ReplyPage(IReadOnlyList<CommentInfo> Replies, string? NextPageToken);

@@ -73,7 +73,8 @@ public partial class MainWindow : Window
     public MainWindow(GroupsViewModel groupsViewModel, FeedViewModel feedViewModel,
         ChannelManagementViewModel channelViewModel, AppSettingsViewModel settingsViewModel,
         SubscriptionStore store, IYouTubeApiClient apiClient, Func<Task<string?>> getAccessToken,
-        Account.AccountViewModel account, Playlists.PlaylistsViewModel playlistsVm, Action onRefreshNow)
+        Account.AccountViewModel account, Playlists.PlaylistsViewModel playlistsVm,
+        Player.CommentsViewModel commentsVm, Action onRefreshNow)
     {
         InitializeComponent();
         _settingsViewModel = settingsViewModel;
@@ -90,7 +91,9 @@ public partial class MainWindow : Window
         var playerFolder = Path.Combine(AppContext.BaseDirectory, "Player");
         _playerPageHost = new Player.PlayerPageHost(playerFolder);
         _playerPageHost.Received += OnPlayerEvent;
-        _playerView = new Player.PlayerView(_actionsVm, onOpenOnYouTube: OpenActiveTabOnYouTube);
+
+        var commentsView = new Player.CommentsView(commentsVm);
+        _playerView = new Player.PlayerView(_actionsVm, commentsView, onOpenOnYouTube: OpenActiveTabOnYouTube);
 
         DockPanel.SetDock(_actionBar, Dock.Top);
         _playerHost.Children.Add(_actionBar);

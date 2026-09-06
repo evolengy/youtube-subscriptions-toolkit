@@ -126,15 +126,4 @@ public class VideoActionsViewModelTests
         Assert.True(NotificationCenter.Count > 0);
     }
 
-    [Fact]
-    public async Task PostComment_Blank_DoesNothing()
-    {
-        var api = new ActionsFakeApi();
-        var vm = Make(api);
-        await vm.LoadAsync("v1");
-
-        await vm.PostCommentAsync("   ");
-
-        Assert.Null(api.PostedComment);
-    }
 }

@@ -17,11 +17,6 @@
             <Button x:Name="SaveButton" DockPanel.Dock="Left" Style="{StaticResource Button.Icon}"
                     Content="&#xE728;" ToolTip="Save to playlist" Margin="8,0,0,0" Click="Save_Click"/>
 
-            <Button x:Name="CommentButton" DockPanel.Dock="Right" Content="Comment" Padding="12,5"
-                    Margin="6,0,0,0" Click="Comment_Click"/>
-            <TextBox x:Name="CommentBox" DockPanel.Dock="Right" Width="240"
-                     ToolTip="Post a comment as your account"/>
-
             <TextBlock x:Name="StatusText" Margin="16,0,12,0" VerticalAlignment="Center"
                        Style="{StaticResource Text.Meta}" TextTrimming="CharacterEllipsis"/>
         </DockPanel>

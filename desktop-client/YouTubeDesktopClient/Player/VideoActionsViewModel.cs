@@ -139,16 +139,6 @@ public class VideoActionsViewModel : INotifyPropertyChanged
             }
         });
 
-    public Task PostCommentAsync(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return Task.CompletedTask;
-        return Run(async (token, id) =>
-        {
-            await _api.PostCommentAsync(token, id, text.Trim());
-            Status = "Comment posted.";
-        });
-    }
-
     private async Task Run(Func<string, string, Task> action)
     {
         if (_videoId is not { } id || !CanInteract || Busy) return;

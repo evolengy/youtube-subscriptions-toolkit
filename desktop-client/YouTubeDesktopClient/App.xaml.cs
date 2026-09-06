@@ -91,10 +91,12 @@ public partial class App : Application
         var account = new AccountViewModel(authService, apiClient, store, appDataDir,
             wipeWebViewProfile: () => _mainWindow?.WipeWebViewProfile());
         var playlistsViewModel = new Playlists.PlaylistsViewModel(apiClient, getAccessToken);
+        var commentsViewModel = new Player.CommentsViewModel(apiClient, getAccessToken,
+            selfName: () => account.Channel?.Title ?? "You");
 
         _mainWindow = new MainWindow(groupsViewModel, feedViewModel, channelViewModel,
             appSettingsViewModel, store, apiClient, getAccessToken, account, playlistsViewModel,
-            onRefreshNow: () => _ = RefreshNowAsync());
+            commentsViewModel, onRefreshNow: () => _ = RefreshNowAsync());
         _mainWindow.Show();
 
         // BackgroundSyncService raises SyncCompleted on the timer's threadpool
