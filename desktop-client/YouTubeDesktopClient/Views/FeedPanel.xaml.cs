@@ -1,134 +1,144 @@
 // Views/FeedPanel.xaml.cs
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using YouTubeDesktopClient.Diagnostics;
 using YouTubeDesktopClient.Feed;
-using YouTubeDesktopClient.Logging;
+using YouTubeDesktopClient.Settings;
 
 namespace YouTubeDesktopClient.Views;
 
 public partial class FeedPanel : UserControl
 {
-    // ItemsControl+WrapPanel doesn't virtualize (every card is a real,
-    // permanently-realized WPF element with its own Image), so rendering
-    // this many at once is what makes every click that triggers Refresh()
-    // freeze the UI for seconds on an account with hundreds of channels —
-    // observed directly with 151 channels / 2259 total cached videos. A
-    // cap keeps a Refresh() cheap regardless of subscription count; a
-    // proper fix (real virtualization or paging) is a larger follow-up.
-    private const int MaxVisibleItems = 150;
-
     private readonly FeedViewModel _viewModel;
-    private readonly Action<string> _onVideoClicked;
-    private string? _activeGroupId;
+    private readonly AppSettingsViewModel _settings;
+    private bool _loadingMore;
 
-    public FeedPanel(FeedViewModel viewModel, Action<string> onVideoClicked)
+    public FeedPanel(FeedViewModel viewModel, Action<string, string> onVideoClicked, AppSettingsViewModel settings)
     {
         _viewModel = viewModel;
-        _onVideoClicked = onVideoClicked;
+        _settings = settings;
         InitializeComponent();
+        DataContext = _viewModel;
+
+        _viewModel.PlayRequestedEvent += onVideoClicked;
+        _viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        _settings.DensityChanged += ApplyDensity;
+        ApplyDensity();
 
         // Wired here rather than in XAML: the ComboBoxItems' IsSelected="True"
         // fires SelectionChanged synchronously while InitializeComponent() is
-        // still parsing the tree, before sibling controls (e.g. SortByBox
-        // while TypeFilterBox is being built) exist yet. Attaching after
-        // InitializeComponent() guarantees every named control is live first.
+        // still parsing the tree, before sibling controls exist yet.
         TypeFilterBox.SelectionChanged += Filters_Changed;
         SortByBox.SelectionChanged += Filters_Changed;
         HideWatchedBox.Checked += Filters_Changed;
         HideWatchedBox.Unchecked += Filters_Changed;
 
-        Refresh();
+        // The VirtualizingWrapPanel reports a sub-pixel horizontal extent at some
+        // widths, and the inner ScrollViewer then shows a phantom horizontal bar
+        // that scrolls nothing. Pinning the real ScrollViewer to Disabled is the
+        // reliable fix (the XAML attached property alone doesn't stick against the
+        // panel's IScrollInfo) — and it has to be re-applied after relayout.
+        VideoGrid.Loaded += (_, _) => PinNoHorizontalScroll();
+        VideoGrid.SizeChanged += (_, _) => PinNoHorizontalScroll();
+
+        _viewModel.Reload();
     }
 
-    public void SetActiveGroup(string? groupId)
+    private ScrollViewer? _gridScrollViewer;
+
+    private void PinNoHorizontalScroll()
     {
-        _activeGroupId = groupId;
-        Refresh();
+        _gridScrollViewer ??= FindDescendant<ScrollViewer>(VideoGrid);
+        if (_gridScrollViewer is { } sv && sv.HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled)
+            sv.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
     }
 
-    private void Filters_Changed(object sender, RoutedEventArgs e)
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match) return match;
+            if (FindDescendant<T>(child) is { } nested) return nested;
+        }
+        return null;
+    }
+
+    public void SetActiveGroup(string? groupId) => _viewModel.SetActiveGroup(groupId);
+
+    /// <summary>
+    /// Re-renders from the store. Public so a completed background sync can push
+    /// fresh data onto the screen (see App's SyncCompleted handler). Must be
+    /// called on the UI thread.
+    /// </summary>
+    public void Refresh()
+    {
+        _viewModel.Reload();
+        UpdateStatus();
+    }
+
+    private void ApplyDensity()
+    {
+        var layout = FeedLayout.For(_settings.Density);
+        Resources["Feed.CardWidth"] = layout.CardWidth;
+        Resources["Feed.ThumbHeight"] = layout.ThumbnailHeight;
+        Resources["Feed.TitleHeight"] = layout.TitleHeight;
+    }
+
+    private void Filters_Changed(object sender, System.Windows.RoutedEventArgs e)
     {
         _viewModel.TypeFilter = ((ComboBoxItem)TypeFilterBox.SelectedItem).Content.ToString()!;
         _viewModel.SortBy = ((ComboBoxItem)SortByBox.SelectedItem).Content.ToString()!;
         _viewModel.HideWatched = HideWatchedBox.IsChecked == true;
-        Refresh();
+        _viewModel.Reload();
     }
 
-    /// <summary>
-    /// Re-renders the cards from the store. Public so a completed background
-    /// sync can push fresh data onto the screen (see App's SyncCompleted
-    /// handler) rather than leaving the feed stale until a filter is toggled.
-    /// Must be called on the UI thread.
-    /// </summary>
-    public void Refresh()
+    private async void VideoGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        VideoGrid.Items.Clear();
-        foreach (var item in _viewModel.GetVisibleItems(_activeGroupId).Take(MaxVisibleItems))
-        {
-            var card = new StackPanel { Width = 220, Margin = new Thickness(4) };
+        if (e.ExtentHeightChange != 0 && e.VerticalChange == 0) return; // layout pass, not a user scroll
+        if (_loadingMore) return;
 
-            var thumbnail = TryLoadThumbnail(item.Video.Thumbnail);
-            if (thumbnail != null)
-                card.Children.Add(new Image { Source = thumbnail, Width = 212, Stretch = Stretch.Uniform });
+        // Within two viewports of the bottom -> pull the next batch.
+        var distanceToEnd = e.ExtentHeight - (e.VerticalOffset + e.ViewportHeight);
+        if (distanceToEnd > e.ViewportHeight * 2) return;
 
-            card.Children.Add(new TextBlock { Text = item.Video.Title, TextWrapping = TextWrapping.Wrap });
-            card.Children.Add(new TextBlock { Text = BuildMetaLine(item) });
-
-            var watchBtn = new Button { Content = item.IsWatched ? "Watched" : "Mark watched" };
-            watchBtn.Click += (_, _) => { _viewModel.MarkWatched(item.Video.VideoId); Refresh(); };
-            card.Children.Add(watchBtn);
-            var playBtn = new Button { Content = "Play" };
-            playBtn.Click += (_, _) => _onVideoClicked(item.Video.VideoId);
-            card.Children.Add(playBtn);
-            VideoGrid.Items.Add(card);
-        }
-    }
-
-    private string BuildMetaLine(FeedItem item)
-    {
-        var parts = new List<string>
-        {
-            item.Type,
-            FormatDuration(item.DurationSeconds),
-            $"{item.Video.ViewCount:N0} views",
-        };
-        var country = _viewModel.GetChannelCountry(item.Video.ChannelId);
-        if (!string.IsNullOrWhiteSpace(country)) parts.Add(country);
-        return string.Join(" · ", parts);
-    }
-
-    private static string FormatDuration(int durationSeconds)
-    {
-        var duration = TimeSpan.FromSeconds(durationSeconds);
-        return duration.TotalHours >= 1
-            ? duration.ToString(@"h\:mm\:ss")
-            : duration.ToString(@"m\:ss");
-    }
-
-    private static BitmapImage? TryLoadThumbnail(string? url)
-    {
-        if (string.IsNullOrWhiteSpace(url)) return null;
+        _loadingMore = true;
         try
         {
-            // A remote BitmapImage downloads asynchronously and reports its own
-            // failures, so only a malformed URL can throw here — but a bad URL
-            // in the cache must not take out the whole feed render.
-            // DecodePixelWidth decodes straight to display size instead of the
-            // source's full resolution — cheap on its own, but the difference
-            // adds up fast once a Refresh() renders 100+ cards at once.
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.UriSource = new Uri(url);
-            bitmap.DecodePixelWidth = 212;
-            bitmap.EndInit();
-            return bitmap;
+            await _viewModel.LoadMoreAsync();
         }
-        catch (Exception ex) when (ex is UriFormatException or NotSupportedException)
+        finally
         {
-            Logger.LogError($"Skipping unusable thumbnail URL '{url}'", ex);
-            return null;
+            _loadingMore = false;
+            UpdateStatus();
         }
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(FeedViewModel.IsExpanding)) UpdateStatus();
+    }
+
+    private bool _quotaReported;
+
+    private void UpdateStatus()
+    {
+        // A live "loading more" line stays inline; the quota problem is a
+        // notification, not a permanent banner glued to the feed.
+        if (_viewModel.QuotaExhausted && !_quotaReported)
+        {
+            _quotaReported = true;
+            NotificationCenter.Report(
+                "YouTube API daily quota is used up — older videos will load again after it resets.");
+        }
+        if (!_viewModel.QuotaExhausted) _quotaReported = false;
+
+        var loading = _viewModel.IsExpanding;
+        StatusText.Text = loading ? "Loading more from YouTube…" : string.Empty;
+        StatusText.Visibility = loading
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
     }
 }

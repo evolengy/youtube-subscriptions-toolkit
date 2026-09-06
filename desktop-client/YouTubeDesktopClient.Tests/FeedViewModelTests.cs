@@ -3,6 +3,20 @@ using Xunit;
 using YouTubeDesktopClient.Feed;
 using YouTubeDesktopClient.Storage;
 using YouTubeDesktopClient.Storage.Models;
+using YouTubeDesktopClient.Sync;
+
+file sealed class StubExpansionService : IFeedExpansionService
+{
+    public int Calls { get; private set; }
+    public Func<bool> OnExpand { get; set; } = () => false;
+    public bool QuotaExhausted { get; set; }
+
+    public Task<bool> ExpandAsync(IReadOnlyCollection<string> channelIds, CancellationToken ct = default)
+    {
+        Calls++;
+        return Task.FromResult(OnExpand());
+    }
+}
 
 public class FeedViewModelTests : IDisposable
 {
@@ -114,5 +128,91 @@ public class FeedViewModelTests : IDisposable
         _viewModel.MarkWatched("v1");
 
         Assert.True(_viewModel.GetVisibleItems(null)[0].IsWatched);
+    }
+
+    private void SeedVideos(int count)
+    {
+        var now = DateTimeOffset.UtcNow;
+        _store.SaveVideosCache(new()
+        {
+            ["UC1"] = Enumerable.Range(0, count)
+                .Select(i => MakeVideo($"v{i}", "UC1", now.AddMinutes(-i), "PT2M", 10))
+                .ToList(),
+        });
+    }
+
+    [Fact]
+    public void Reload_RevealsOnlyTheFirstPage()
+    {
+        SeedVideos(130);
+
+        _viewModel.Reload();
+
+        Assert.Equal(60, _viewModel.Items.Count);
+    }
+
+    [Fact]
+    public async Task LoadMoreAsync_RevealsNextLocalPage_WithoutTouchingTheNetwork()
+    {
+        SeedVideos(130);
+        var expansion = new StubExpansionService();
+        var vm = new FeedViewModel(_store, expansion);
+        vm.Reload();
+
+        await vm.LoadMoreAsync();
+        Assert.Equal(120, vm.Items.Count);
+
+        await vm.LoadMoreAsync();
+        Assert.Equal(130, vm.Items.Count);
+        Assert.Equal(0, expansion.Calls);
+    }
+
+    [Fact]
+    public async Task LoadMoreAsync_CallsExpansion_WhenLocalCacheExhausted()
+    {
+        SeedVideos(10);
+        var expansion = new StubExpansionService();
+        var vm = new FeedViewModel(_store, expansion);
+        vm.Reload();
+
+        await vm.LoadMoreAsync();
+
+        Assert.Equal(1, expansion.Calls);
+    }
+
+    [Fact]
+    public async Task LoadMoreAsync_SkipsExpansion_WhenAutoExpandDisabled()
+    {
+        SeedVideos(10);
+        var expansion = new StubExpansionService();
+        var vm = new FeedViewModel(_store, expansion, isAutoExpandEnabled: () => false);
+        vm.Reload();
+
+        await vm.LoadMoreAsync();
+
+        Assert.Equal(0, expansion.Calls);
+    }
+
+    [Fact]
+    public async Task LoadMoreAsync_RevealsNewlyExpandedVideos()
+    {
+        SeedVideos(10);
+        var expansion = new StubExpansionService
+        {
+            OnExpand = () =>
+            {
+                _store.AppendChannelHistory("UC1",
+                    new List<VideoInfo> { MakeVideo("older", "UC1", DateTimeOffset.UtcNow.AddYears(-1), "PT2M", 10) },
+                    nextPageToken: null, historyComplete: true);
+                return true;
+            },
+        };
+        var vm = new FeedViewModel(_store, expansion);
+        vm.Reload();
+
+        await vm.LoadMoreAsync();
+
+        Assert.Equal(11, vm.Items.Count);
+        Assert.Contains(vm.Items, c => c.VideoId == "older");
     }
 }
