@@ -39,7 +39,7 @@ The desktop client was built from this spec and then extended over several redes
 
 ## Context
 
-The existing project is a Chrome MV3 extension (`browser-yotube-functions`) that adds PocketTube-style subscription groups, a filtered/sorted feed, dead-channel detection, and a channel-location badge on top of youtube.com, plus a sidebar injected into YouTube's own DOM. That injection is the extension's main source of fragility: YouTube's frequent redesigns can silently break the sidebar or the location badge at any time (see [STATUS.md](../../../STATUS.md) for the extension's current state and the abandoned cross-account migration attempt).
+The existing project is a Chrome MV3 extension (`browser-yotube-functions`) that adds PocketTube-style subscription groups, a filtered/sorted feed, dead-channel detection, and a channel-location badge on top of youtube.com, plus a sidebar injected into YouTube's own DOM. That injection is the extension's main source of fragility: YouTube's frequent redesigns can silently break the sidebar or the location badge at any time (see [STATUS.md](../../../STATUS.md) for the extension's current state).
 
 This spec covers a **separate, standalone Windows desktop application** — not a replacement for the extension, which keeps working independently. The goal is a personal YouTube client ("a fork of the YouTube app, with the extension's functionality") that owns its entire UI natively, using the YouTube Data API v3 for data and an embedded browser control only for the parts that must render YouTube's own page (video playback).
 
@@ -54,9 +54,7 @@ This spec covers a **separate, standalone Windows desktop application** — not 
 
 ## Non-goals
 
-- No cross-account subscription migration (already attempted and abandoned in the extension — see STATUS.md).
 - No cross-device sync in this version (explicitly deferred; storage is designed to make adding it later straightforward, not to implement it now).
-- No support for Brand Account channels that don't appear in Google's standard OAuth account chooser — same open unknown as the extension had.
 
 ## Architecture overview
 
@@ -88,7 +86,6 @@ Mirrors the extension's module split, ported from JS to C#:
 - Flow: Authorization Code + PKCE. The app starts a temporary local `HttpListener` on `http://127.0.0.1:{port}/`, opens the system default browser to Google's consent screen, and captures the redirected authorization code.
 - The code is exchanged for an `access_token` + `refresh_token`. The `refresh_token` is encrypted at rest with Windows DPAPI (`ProtectedData.Protect`, current-user scope) and stored in `%AppData%`.
 - The background service uses the `refresh_token` to silently mint new `access_token`s — no repeated interactive login, unlike the extension's one-off `launchWebAuthFlow` (which had no refresh mechanism at all).
-- Known open question carried over from the extension: whether a Brand Account that doesn't appear in Google's standard account chooser can be authenticated this way. Not resolved by this design — same fundamental Google-side limitation, not something our OAuth client type controls.
 
 ## API quota strategy
 
@@ -125,7 +122,6 @@ Worth being explicit about, since it's easy to assume more integration than the 
 
 - **"Mark watched" in the Feed tab is local-only bookkeeping** (same as the extension's `watchedVideoIds`) — there is no public API to mark a video watched on the real account, so clicking it only affects this app's own filtering/dimming.
 - **Actually playing a video in a video tab writes to the real YouTube watch history automatically**, at no extra implementation cost — it's the genuine youtube.com page and player, so YouTube's own history tracking applies exactly as it would in a browser.
-- **There is no API to hide a video or mark "not interested"** — that only exists as a manual action inside YouTube's own UI (e.g., from the Home tab), and can't be triggered from our Feed grid.
 
 ## Background & tray
 

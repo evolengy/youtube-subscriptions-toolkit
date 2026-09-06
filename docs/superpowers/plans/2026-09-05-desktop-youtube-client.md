@@ -2870,4 +2870,4 @@ git commit -m "feat: wire sign-in, background sync, and tray icon into app start
 - Dead-channel detection + unsubscribe — Tasks 10, 12.
 - Tabs (pinned Feed/Home, in-place vs. new-tab video navigation) — Tasks 11, 12.
 - Tray, background timer, start-with-Windows — Task 13.
-- "What's real vs. local-only" (mark-watched is local; real playback writes real history; no hide/not-interested API) — reflected directly in the Feed/tab design (Tasks 9, 12); no separate task needed since it's a documentation point about existing behavior, not new code.
+- "What's real vs. local-only" (mark-watched is local; real playback writes real history) — reflected directly in the Feed/tab design (Tasks 9, 12); no separate task needed since it's a documentation point about existing behavior, not new code.

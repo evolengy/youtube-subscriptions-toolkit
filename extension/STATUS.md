@@ -12,12 +12,6 @@ Chrome-расширение (Manifest V3) для управления YouTube-п
 - **Авторизация** — OAuth через `chrome.identity.getAuthToken`, один и тот же токен (scope `https://www.googleapis.com/auth/youtube`) используется для всех вызовов API.
 - **Периодическое обновление** — `chrome.alarms`, раз в 45 минут подтягивает новые видео по всем каналам.
 
-## Пробовали и отказались
-
-- **Перенос подписок между аккаунтами** (export/import через `subscriptions.insert`). Реализация была рабочей для обычных аккаунтов, но упёрлись в то, что целевой источник — старый Brand Account (`driftmc2009-6423@pages.plusgoogle.com`), который не выбирается напрямую ни через `chrome.identity.getAuthToken`, ни надёжно через `chrome.identity.launchWebAuthFlow` (Google непоследовательно показывает Brand Account в чузере логина в зависимости от контекста). Решили не тратить на это больше времени — код удалён из [background.js](background.js), [youtubeApi.js](youtubeApi.js), [storage.js](storage.js), [dashboard.html](dashboard.html)/[dashboard.js](dashboard.js).
-  - Если понадобится вернуться: сначала точно установить, каким реальным Google-аккаунтом управляется driftmc2009 (`myaccount.google.com/brandaccounts` под каждым кандидатом), и проверить, показывает ли Google этот Brand Account как выбираемый вариант в `launchWebAuthFlow`-попапе именно под тем аккаунтом.
-  - Автоматизация через клики в браузере (вместо API) сознательно не рассматривалась — риск блокировки аккаунта YouTube за bot-like поведение.
-
 ## Известные ограничения / на будущее
 
 - Уведомления по группам (были в списке функций PocketTube) — не реализованы.
