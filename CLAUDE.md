@@ -11,7 +11,7 @@ management on top of the YouTube Data API v3), plus the design docs that drove t
 |---|---|---|
 | `extension/` | The original Chrome MV3 extension. Still maintained, ships on its own. | Vanilla JS (ES modules), no build step |
 | `desktop-client/` | A standalone Windows desktop app that re-implements the extension's functionality natively and adds embedded playback. | C# / .NET 10 / WPF |
-| `docs/superpowers/` | The spec + task-by-task plan the desktop client was built from (Superpowers SDD workflow). Read the spec before changing desktop-client architecture. | Markdown |
+| `docs/superpowers/` | The spec + task-by-task plan the desktop client was **originally** built from (Superpowers SDD workflow). The app has evolved well past it since — **this file (CLAUDE.md) is the current architecture reference**; the spec has an "Evolution since this spec" section listing what changed. | Markdown |
 
 The desktop client is **not** a replacement for the extension — it was built specifically to
 stop depending on injecting into YouTube's DOM (the extension's main fragility). Changes to one
@@ -71,10 +71,13 @@ dotnet test --filter "DisplayName~ParsesSingleFullPage"
   ```
   (Run from `desktop-client/`. It just points at the dev build — `rm "$lnk"` to remove.)
 - Tests use xUnit with a **hand-written `FakeHttpMessageHandler`** (in
-  `YouTubeDesktopClient.Tests/YouTubeApiClientTests.cs`) and hand-written fake
-  `IYouTubeApiClient` / `IFeedExpansionService` classes (one per test file, `file`-scoped) —
-  there is no mocking library, keep it that way. `NotificationCenter` is static, so tests that
-  provoke errors call `NotificationCenter.Clear()` first.
+  `YouTubeDesktopClient.Tests/YouTubeApiClientTests.cs`, drives the real `YouTubeApiClient`) and
+  hand-written fake interface classes — one per test file, `file`-scoped, no mocking library, keep
+  it that way. The API surface is split into `IYouTubeApiClient` / `IYouTubeAccountApi` /
+  `IYouTubePlaylistApi` / `IYouTubeCommentApi` (+ `IAuthService`, `IFeedExpansionService`)
+  precisely so each fake only stubs the handful of methods its view model touches. `NotificationCenter`
+  is static, so tests that provoke errors call `NotificationCenter.Clear()` first. Current count is
+  ~160; every phase adds a test file next to its view model.
 
 ### extension
 
@@ -130,8 +133,11 @@ directly). No DOM injection anywhere — that is the whole point of this app ver
 
 ### Background sync + feed expansion (quota is the constraint)
 
-The free quota is 10,000 units/day and `playlistItems.list` (1 unit/channel, not batchable)
-dominates. Two mechanisms keep a hundreds-of-subscriptions account under quota:
+The free quota is 10,000 units/day. **Reads (`*.list`) cost 1 unit, writes
+(`insert`/`update`/`delete`/`rate`) cost 50, `search.list` costs 100** — so `playlistItems.list`
+(1 unit/channel, not batchable) dominates the sync, and user-triggered writes (rate a video, add
+to a playlist, post a comment) should each be a deliberate action, never bulk. Two mechanisms keep
+a hundreds-of-subscriptions account under quota:
 
 - `Sync/BackgroundSyncService.cs` — `Timer`-driven, default **3-hour** interval (not the
   extension's 45 min). Fires the first run at `TimeSpan.Zero`. The callback **must never let an

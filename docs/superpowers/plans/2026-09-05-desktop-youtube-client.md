@@ -1,5 +1,9 @@
 # Desktop YouTube Client Implementation Plan
 
+> **Historical.** This plan built the first version of `desktop-client/` (all tasks done, merged).
+> The app has since been redesigned and extended considerably — see the spec's "Evolution since
+> this spec" section and the repo `CLAUDE.md` for the current state. Do not execute this plan again.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a standalone Windows desktop YouTube client (.NET 10, WPF) that reproduces the browser extension's subscription-groups/feed/dead-channel functionality natively, plus embedded full-page video/home playback via WebView2 — without touching YouTube's own DOM anywhere.

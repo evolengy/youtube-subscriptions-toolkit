@@ -1,5 +1,42 @@
 # Desktop YouTube client — design
 
+> **This is the original build spec (2026-09-05). The app has evolved past it — see
+> "Evolution since this spec" below, and use the repo's `CLAUDE.md` as the current
+> architecture reference.** The rest of this document is preserved as the point-in-time
+> SDD artifact it was.
+
+## Evolution since this spec
+
+The desktop client was built from this spec and then extended over several redesign rounds
+(tracked in commit history and the author's working notes). Major departures:
+
+- **Playback is the official IFrame player by default, not the embedded watch page.**
+  `Player/player.html` (bundled, mapped to a virtual `https://ytdesktop.local/` origin) runs
+  YouTube's IFrame Player API — no YouTube web login, no API quota, a JS bridge for
+  pause-on-tab-switch and an "un-embeddable → open on YouTube" fallback. `AppSettings.PlaybackMode`
+  keeps the full watch page as an opt-in (`FullPage`, writes watch history).
+- **Native metadata strip + native comments** under the player (embed mode): title / channel /
+  views·date / description, then a threaded comments list (`Player/CommentsView`,
+  `commentThreads.list` / `comments.list` / `comments.insert`). The compose box moved here from the
+  action bar.
+- **Native player action bar** (`Views/VideoActionBar`) — Like / Dislike / Subscribe / Save,
+  driven by `Player/VideoActionsViewModel` over the Data API, independent of the WebView session.
+- **Playlists** — a sidebar destination + `Playlists/PlaylistsViewModel` + `IYouTubePlaylistApi`:
+  browse / create / rename / delete, add/remove videos, "Save to playlist" from feed cards.
+- **Account-scoped storage.** Instead of one flat `settings.json` / `cache.json`, each account's
+  data lives under `%AppData%\...\accounts\{channelId}\`. `Account/AccountViewModel` +
+  `IYouTubeAccountApi` resolve the signed-in channel and point `SubscriptionStore` at its folder;
+  a toolbar account control (name + avatar + Sign out) replaces the tray's sign-in/out items.
+- **OAuth scope is `.../auth/youtube.force-ssl`**, not the plain `.../auth/youtube` — comments
+  require it.
+- **Subscription reconciliation** — `BackgroundSyncService` diffs each sync against the cache,
+  reports "+N / −N" and prunes unsubscribed channels out of groups.
+- **UI shell** — Feed / Home / Playlists / Channels / Settings are sidebar destinations (a
+  `ListBox`), not tabs; the only real tabs are open video documents. Full theme-token system
+  (`Themes/*`), retemplated controls, themed tooltips + a dark WinForms tray menu, DWM dark title
+  bar. The feed is a virtualized `Views/VideoCardGrid` (WpfToolkit `VirtualizingWrapPanel`), shared
+  with the playlists panel.
+
 ## Context
 
 The existing project is a Chrome MV3 extension (`browser-yotube-functions`) that adds PocketTube-style subscription groups, a filtered/sorted feed, dead-channel detection, and a channel-location badge on top of youtube.com, plus a sidebar injected into YouTube's own DOM. That injection is the extension's main source of fragility: YouTube's frequent redesigns can silently break the sidebar or the location badge at any time (see [STATUS.md](../../../STATUS.md) for the extension's current state and the abandoned cross-account migration attempt).
