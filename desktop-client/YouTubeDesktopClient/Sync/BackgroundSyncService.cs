@@ -43,11 +43,26 @@ public class BackgroundSyncService
             catch (Exception ex)
             {
                 Logger.LogError("Background sync failed", ex);
+                Diagnostics.NotificationCenter.Report(DescribeSyncFailure(ex));
             }
         }, null, TimeSpan.Zero, interval);
     }
 
     public void Stop() => _timer?.Dispose();
+
+    private static string DescribeSyncFailure(Exception ex)
+    {
+        if (ex is YouTubeApiException { StatusCode: System.Net.HttpStatusCode.Forbidden } e)
+        {
+            var body = e.ResponseBody ?? string.Empty;
+            if (body.Contains("quotaExceeded", StringComparison.OrdinalIgnoreCase)
+                || body.Contains("dailyLimitExceeded", StringComparison.OrdinalIgnoreCase))
+                return "Background sync skipped — YouTube API daily quota is used up. The feed is showing cached videos.";
+        }
+        if (ex is YouTubeApiException { StatusCode: System.Net.HttpStatusCode.Unauthorized })
+            return "Background sync couldn't run — sign in again.";
+        return "Background sync failed — see the log file for details.";
+    }
 
     public async Task RunOnceAsync()
     {
@@ -66,30 +81,54 @@ public class BackgroundSyncService
         foreach (var sub in subscriptions)
         {
             channelDetails.TryGetValue(sub.ChannelId, out var details);
-            var previousEtag = previousCache.TryGetValue(sub.ChannelId, out var prevEntry) ? prevEntry.PlaylistEtag : null;
+            previousCache.TryGetValue(sub.ChannelId, out var prevEntry);
+            var previousEtag = prevEntry?.PlaylistEtag;
 
             if (details == null)
             {
                 subscriptionsCache[sub.ChannelId] = new SubscriptionCacheEntry(
-                    sub.Title, sub.Thumbnail, null, null, Dead: true, previousEtag, sub.SubscriptionId);
+                    sub.Title, sub.Thumbnail, null, null, Dead: true, previousEtag, sub.SubscriptionId,
+                    prevEntry?.UploadsNextPageToken, prevEntry?.HistoryComplete ?? false);
                 continue;
             }
 
             var playlistResult = await _api.FetchRecentUploadIdsAsync(
                 token, details.UploadsPlaylistId, previousEtag, VideosPerChannel);
 
+            previousVideos.TryGetValue(sub.ChannelId, out var existingVideos);
+
+            // Preserve the deep-history cursor across syncs: FeedExpansionService
+            // advances it as the user scrolls, and a sync must not rewind that.
+            // Only seed it (from this first page) when we've never had one.
+            var nextPageToken = prevEntry?.UploadsNextPageToken;
+            var historyComplete = prevEntry?.HistoryComplete ?? false;
+            if (nextPageToken == null && !historyComplete)
+            {
+                nextPageToken = playlistResult.NotModified ? null : playlistResult.NextPageToken;
+                historyComplete = !playlistResult.NotModified && playlistResult.NextPageToken == null;
+            }
+
             subscriptionsCache[sub.ChannelId] = new SubscriptionCacheEntry(
-                sub.Title, sub.Thumbnail, details.Country, details.UploadsPlaylistId, Dead: false, playlistResult.Etag, sub.SubscriptionId);
+                sub.Title, sub.Thumbnail, details.Country, details.UploadsPlaylistId, Dead: false,
+                playlistResult.NotModified ? prevEntry?.PlaylistEtag : playlistResult.Etag,
+                sub.SubscriptionId, nextPageToken, historyComplete);
 
             if (playlistResult.NotModified)
             {
-                if (previousVideos.TryGetValue(sub.ChannelId, out var existing))
-                    videosCache[sub.ChannelId] = existing;
+                if (existingVideos != null) videosCache[sub.ChannelId] = existingVideos;
                 continue;
             }
 
-            if (playlistResult.VideoIds.Count == 0) continue;
-            videosCache[sub.ChannelId] = await _api.FetchVideosDetailsAsync(token, playlistResult.VideoIds);
+            if (playlistResult.VideoIds.Count == 0)
+            {
+                if (existingVideos != null) videosCache[sub.ChannelId] = existingVideos;
+                continue;
+            }
+
+            // Merge the refreshed newest-N over whatever we already cached, so
+            // videos pulled by FeedExpansionService (older than page 1) survive.
+            var freshVideos = await _api.FetchVideosDetailsAsync(token, playlistResult.VideoIds);
+            videosCache[sub.ChannelId] = VideoMerge.Dedup(existingVideos, freshVideos);
         }
 
         _store.SaveSubscriptionsCache(subscriptionsCache);
