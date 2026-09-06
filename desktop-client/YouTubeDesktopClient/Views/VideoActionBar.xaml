@@ -1,0 +1,27 @@
+<UserControl x:Class="YouTubeDesktopClient.Views.VideoActionBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Background="{DynamicResource Brush.Surface}"
+            BorderBrush="{DynamicResource Brush.BorderSubtle}" BorderThickness="0,0,0,1"
+            Padding="12,7">
+        <DockPanel LastChildFill="True">
+            <TextBlock x:Name="ChannelText" DockPanel.Dock="Left" FontWeight="SemiBold"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="200"/>
+
+            <Button x:Name="LikeButton" DockPanel.Dock="Left" Style="{StaticResource Button.Icon}"
+                    Content="&#xE8E1;" ToolTip="Like" Margin="14,0,0,0" Click="Like_Click"/>
+            <Button x:Name="DislikeButton" DockPanel.Dock="Left" Style="{StaticResource Button.Icon}"
+                    Content="&#xE8E0;" ToolTip="Dislike" Margin="2,0,0,0" Click="Dislike_Click"/>
+            <Button x:Name="SubscribeButton" DockPanel.Dock="Left" Padding="14,5" Margin="12,0,0,0"
+                    Content="Subscribe" Click="Subscribe_Click"/>
+
+            <Button x:Name="CommentButton" DockPanel.Dock="Right" Content="Comment" Padding="12,5"
+                    Margin="6,0,0,0" Click="Comment_Click"/>
+            <TextBox x:Name="CommentBox" DockPanel.Dock="Right" Width="240"
+                     ToolTip="Post a comment as your account"/>
+
+            <TextBlock x:Name="StatusText" Margin="16,0,12,0" VerticalAlignment="Center"
+                       Style="{StaticResource Text.Meta}" TextTrimming="CharacterEllipsis"/>
+        </DockPanel>
+    </Border>
+</UserControl>

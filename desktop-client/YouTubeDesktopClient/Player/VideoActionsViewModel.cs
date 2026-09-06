@@ -1,0 +1,189 @@
+// Player/VideoActionsViewModel.cs
+using System.ComponentModel;
+using System.Net;
+using System.Runtime.CompilerServices;
+using YouTubeDesktopClient.Api;
+using YouTubeDesktopClient.Diagnostics;
+using YouTubeDesktopClient.Logging;
+
+namespace YouTubeDesktopClient.Player;
+
+/// <summary>
+/// Backs the action bar above the video player. Everything here goes through the
+/// YouTube Data API on the OAuth token the app already holds (scope
+/// <c>.../auth/youtube</c>) — it does NOT depend on a web session inside the
+/// WebView2, so Like / Subscribe / Comment work even when the embedded page shows
+/// "Sign in". Watch history is deliberately absent: no API can write it.
+///
+/// Calls wait for the server and only then flip local state, so the bar never
+/// shows a like that didn't actually land. Buttons are disabled while a call is
+/// in flight (<see cref="Busy"/>).
+/// </summary>
+public class VideoActionsViewModel : INotifyPropertyChanged
+{
+    private readonly IYouTubeApiClient _api;
+    private readonly Func<Task<string?>> _getToken;
+
+    private string? _videoId;
+    private string _channelId = "";
+    private string _rating = "none";        // "like" | "dislike" | "none"
+    private string? _subscriptionId;        // non-null => subscribed
+    private bool _busy;
+    private string? _status;
+
+    public VideoActionsViewModel(IYouTubeApiClient api, Func<Task<string?>> getToken)
+    {
+        _api = api;
+        _getToken = getToken;
+    }
+
+    public string ChannelTitle { get; private set; } = "";
+    public bool CanInteract { get; private set; }
+    public bool IsLiked => _rating == "like";
+    public bool IsDisliked => _rating == "dislike";
+    public bool IsSubscribed => _subscriptionId != null;
+    public string SubscribeLabel => IsSubscribed ? "Subscribed ✓" : "Subscribe";
+
+    public bool Busy
+    {
+        get => _busy;
+        private set { if (_busy == value) return; _busy = value; Raise(); }
+    }
+
+    public string? Status
+    {
+        get => _status;
+        private set { if (_status == value) return; _status = value; Raise(); }
+    }
+
+    /// <summary>Fetches owner + current rating + subscription for a freshly shown video.</summary>
+    public async Task LoadAsync(string videoId)
+    {
+        _videoId = videoId;
+        _channelId = "";
+        ChannelTitle = "";
+        _rating = "none";
+        _subscriptionId = null;
+        CanInteract = false;
+        Status = null;
+        RaiseAll();
+
+        var token = await _getToken();
+        if (token is null)
+        {
+            Status = "Sign in on the Home tab to like, subscribe or comment.";
+            return;
+        }
+
+        try
+        {
+            Busy = true;
+            var state = await _api.GetVideoActionStateAsync(token, videoId);
+            _channelId = state.ChannelId;
+            ChannelTitle = state.ChannelTitle;
+            _rating = state.Rating;
+            _subscriptionId = state.SubscriptionId;
+            CanInteract = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Loading video action state for {videoId} failed", ex);
+            NotificationCenter.Report(Describe(ex));
+        }
+        finally
+        {
+            Busy = false;
+            RaiseAll();
+        }
+    }
+
+    /// <summary>Clicking the button you're already on clears the rating (YouTube's own behaviour).</summary>
+    public Task ToggleRatingAsync(string desired) =>
+        Run(async (token, id) =>
+        {
+            var next = _rating == desired ? "none" : desired;
+            await _api.RateVideoAsync(token, id, next);
+            _rating = next;
+        });
+
+    public Task ToggleSubscribeAsync() =>
+        Run(async (token, _) =>
+        {
+            if (_subscriptionId is { } existing)
+            {
+                await _api.UnsubscribeAsync(token, existing);
+                _subscriptionId = null;
+            }
+            else
+            {
+                _subscriptionId = await _api.SubscribeAsync(token, _channelId);
+            }
+        });
+
+    public Task PostCommentAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return Task.CompletedTask;
+        return Run(async (token, id) =>
+        {
+            await _api.PostCommentAsync(token, id, text.Trim());
+            Status = "Comment posted.";
+        });
+    }
+
+    private async Task Run(Func<string, string, Task> action)
+    {
+        if (_videoId is not { } id || !CanInteract || Busy) return;
+        var token = await _getToken();
+        if (token is null) { Status = "Not signed in."; return; }
+
+        try
+        {
+            Busy = true;
+            Status = null;
+            RaiseAll();
+            await action(token, id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Player action failed", ex);
+            NotificationCenter.Report(Describe(ex));
+        }
+        finally
+        {
+            Busy = false;
+            RaiseAll();
+        }
+    }
+
+    private static string Describe(Exception ex) => ex switch
+    {
+        YouTubeApiException { StatusCode: HttpStatusCode.Forbidden } e when IsQuota(e) =>
+            "YouTube API daily quota is used up — actions work again after it resets (~midnight US Pacific).",
+        YouTubeApiException { StatusCode: HttpStatusCode.Forbidden } => "YouTube rejected the action.",
+        YouTubeApiException { StatusCode: HttpStatusCode.Unauthorized } => "Session expired — sign in again.",
+        YouTubeApiException => "YouTube returned an error.",
+        _ => "Something went wrong.",
+    };
+
+    private static bool IsQuota(YouTubeApiException e)
+    {
+        var body = e.ResponseBody ?? string.Empty;
+        return body.Contains("quotaExceeded", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("dailyLimitExceeded", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("rateLimitExceeded", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Raise([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    private void RaiseAll()
+    {
+        foreach (var p in new[]
+        {
+            nameof(ChannelTitle), nameof(CanInteract), nameof(IsLiked), nameof(IsDisliked),
+            nameof(IsSubscribed), nameof(SubscribeLabel), nameof(Busy), nameof(Status),
+        })
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
+    }
+}
