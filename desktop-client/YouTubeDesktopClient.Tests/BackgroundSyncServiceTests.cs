@@ -1,5 +1,6 @@
 using Xunit;
 using YouTubeDesktopClient.Api;
+using YouTubeDesktopClient.Diagnostics;
 using YouTubeDesktopClient.Storage;
 using YouTubeDesktopClient.Storage.Models;
 using YouTubeDesktopClient.Sync;
@@ -176,6 +177,43 @@ public class BackgroundSyncServiceTests : IDisposable
         await service.RunOnceAsync();
 
         Assert.Equal("deep-page-7", _store.GetSubscriptionsCache()["UC1"].UploadsNextPageToken);
+    }
+
+    [Fact]
+    public async Task RunOnceAsync_ReconcilesSubscriptions_ReportsDeltaAndPrunesGroups()
+    {
+        NotificationCenter.Clear();
+        _store.SaveGroups(new()
+        {
+            ["g1"] = new GroupData("Mix", new() { "UC1", "UCgone" }),
+        });
+
+        SubscriptionEntry Sub(string id) => new($"s_{id}", id, id + " name", null);
+        ChannelDetails Det(string id) => new(id, null, "UU_" + id);
+
+        var api = new FakeYouTubeApiClient
+        {
+            Subscriptions = new() { Sub("UC1"), Sub("UCgone") },
+            Channels = new() { ["UC1"] = Det("UC1"), ["UCgone"] = Det("UCgone") },
+            PlaylistResults = new()
+            {
+                ["UU_UC1"] = new PlaylistItemsResult(new(), null, NotModified: false),
+                ["UU_UCgone"] = new PlaylistItemsResult(new(), null, NotModified: false),
+            },
+        };
+        var service = new BackgroundSyncService(api, _store, () => Task.FromResult<string?>("token"));
+
+        await service.RunOnceAsync();                     // first run — no diff reported
+        Assert.Equal(0, NotificationCenter.Count);
+
+        api.Subscriptions = new() { Sub("UC1"), Sub("UCnew") };
+        api.Channels["UCnew"] = Det("UCnew");
+        api.PlaylistResults["UU_UCnew"] = new PlaylistItemsResult(new(), null, NotModified: false);
+
+        await service.RunOnceAsync();                     // second run — UCgone removed, UCnew added
+
+        Assert.True(NotificationCenter.Count > 0);
+        Assert.Equal(new[] { "UC1" }, _store.GetGroups()["g1"].ChannelIds);
     }
 
     [Fact]

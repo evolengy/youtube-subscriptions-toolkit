@@ -49,9 +49,16 @@ dotnet test --filter "DisplayName~ParsesSingleFullPage"
 - **.NET 10 SDK is required** (`net10.0-windows`); .NET 8/9 will not build it. The plan is
   explicit that 10 is a hard constraint.
 - Runtime data lives in `%AppData%\YouTubeSubscriptionsToolkit\`:
-  `settings.json`, `cache.json`, `token.bin` (DPAPI-encrypted refresh token), `log.txt`,
-  `WebView2\` (shared browser profile). Delete these to reset app state; `log.txt` is the first
-  place to look when debugging a live run.
+  `token.bin` (DPAPI-encrypted refresh token of the *active* account), `account.json` (last
+  resolved `MyChannel` — the fallback identity when a startup `channels.list?mine=true` 403s on
+  quota), `log.txt`, `WebView2\` (shared browser profile), and **`accounts\{channelId}\`** each
+  holding that account's `settings.json` + `cache.json`. `AccountViewModel` points
+  `SubscriptionStore` at the active account's folder on sign-in (`ActivateAccount`) and unbinds
+  it on sign-out (`Deactivate` → reads empty, writes dropped). A pre-`accounts\` flat
+  `settings.json`/`cache.json` is migrated into the first account's folder once. Signing into a
+  *different* account relaunches the app so every view model / `ThemeManager` rebinds. Delete
+  `accounts\` + `token.bin` + `account.json` to reset; `log.txt` is the first place to look when
+  debugging a live run.
 - **Visual testing:** for Claude to drive / screenshot the running app via computer-use, a
   Start-menu shortcut must exist (computer-use resolves apps by Start-menu name, not by running
   process). Create it once, then `request_access(["YouTube Desktop Client"])` works after a
@@ -102,10 +109,19 @@ directly). No DOM injection anywhere — that is the whole point of this app ver
 - `Feed/VideoClassifier.cs` — ISO-8601 duration parsing + the Shorts/Live/Video heuristic
   (live/upcoming first, then a 60s Shorts threshold). Ported verbatim from the extension's
   already-approved logic; keep the heuristic identical unless the spec changes.
-- `Auth/AuthService.cs` — OAuth Authorization Code + PKCE. Spins up a temporary loopback
-  `HttpListener` on `http://127.0.0.1:{port}/`, opens the system browser, captures the code.
-  Refresh token encrypted at rest via Windows DPAPI (`TokenStore.cs`). `GetAccessTokenSilentAsync`
-  returns `null` (never throws) for every "not signed in" outcome — it runs inside the sync timer.
+- `Auth/AuthService.cs` (`: IAuthService`) — OAuth Authorization Code + PKCE. Spins up a temporary
+  loopback `HttpListener` on `http://127.0.0.1:{port}/`, opens the system browser, captures the
+  code. Refresh token encrypted at rest via Windows DPAPI (`TokenStore.cs`).
+  `GetAccessTokenSilentAsync` returns `null` (never throws) for every "not signed in" outcome — it
+  runs inside the sync timer.
+- `Account/AccountViewModel.cs` — the single "who's signed in" source. `ResolveAsync` (startup):
+  silent token → `IYouTubeAccountApi.GetMyChannelAsync` (`channels.list?mine=true`, or the cached
+  `account.json` when that 403s) → `SubscriptionStore.ActivateAccount`. `SignInAsync` /
+  `SignOutAsync` drive the toolbar account control (name + avatar + a Sign-out popup — Sign
+  in/out is **not** in the tray anymore). Sign-out clears the token + `account.json` and wipes
+  the WebView2 profile (deferred via `WebViewProfile` — the folder is held by lingering
+  msedgewebview2 processes, so the wipe finishes at next launch). The background sync (which
+  writes `cache.json`) only starts once an account is active.
 
 ### Background sync + feed expansion (quota is the constraint)
 
@@ -116,7 +132,11 @@ dominates. Two mechanisms keep a hundreds-of-subscriptions account under quota:
   extension's 45 min). Fires the first run at `TimeSpan.Zero`. The callback **must never let an
   exception escape** — an unhandled exception on a threadpool thread kills the process. Sends
   stored ETags as `If-None-Match`; a `304` costs zero quota and short-circuits that channel.
-  Raises `SyncCompleted` on the threadpool thread — UI subscribers marshal to the dispatcher themselves.
+  Raises `SyncCompleted` on the threadpool thread — UI subscribers marshal to the dispatcher
+  themselves. `ReconcileSubscriptions` diffs the fresh subscription set against the previous
+  cache: reports "+N / −N" to `NotificationCenter` and calls
+  `SubscriptionStore.PruneChannelsFromGroups` for any channel unsubscribed on the web (skipped on
+  the first-ever sync).
 - `Sync/FeedExpansionService.cs` — pulls *older* history pages on demand as the user scrolls
   past the cached window. Bounded by `MaxCachedPerChannel` (500) and `MaxParallelism` (4). A 403
   whose body names `quotaExceeded`/`dailyLimitExceeded`/`rateLimitExceeded` sets `QuotaExhausted`
@@ -206,8 +226,12 @@ attached property alone doesn't hold against its `IScrollInfo`).
   default `Embed` player does not.
 - `csproj` deliberately removes the implicit `System.Windows.Forms` / `System.Drawing` global
   usings: `UseWPF` + `UseWindowsForms` together add them and they collide with WPF's
-  `Application`/`Timer`/`UserControl`. Only `Tray/TrayIconService.cs` (NotifyIcon) uses WinForms,
-  and it qualifies those types explicitly.
+  `Application`/`Timer`/`UserControl`. Only `Tray/*` (NotifyIcon) uses WinForms, and it qualifies
+  those types explicitly.
+- **Theming reaches WPF only.** WPF popups/menus/tooltips are themed by styles in
+  `Themes/Controls.xaml` (`ToolTip` included — without it every `ToolTip="..."` is system-white in
+  dark). The tray `ContextMenuStrip` is WinForms, so `Tray/DarkMenuRenderer.cs` gives it a
+  `ProfessionalColorTable` + text-colour override, re-applied on `ThemeManager.ThemeChanged`.
 
 ## extension architecture
 

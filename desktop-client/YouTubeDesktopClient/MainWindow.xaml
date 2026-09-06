@@ -99,6 +99,25 @@
 
             <Border Grid.Row="0" Background="{DynamicResource Brush.Surface}">
                 <DockPanel Margin="8,6">
+                    <Button x:Name="AccountButton" DockPanel.Dock="Right" Background="Transparent"
+                            BorderThickness="0" Padding="8,4" Margin="4,0,0,0" MinHeight="30"
+                            Click="AccountButton_Click"/>
+                    <Popup x:Name="AccountPopup" PlacementTarget="{Binding ElementName=AccountButton}"
+                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                           HorizontalOffset="-180" VerticalOffset="6">
+                        <Border Background="{DynamicResource Brush.Elevated}"
+                                BorderBrush="{DynamicResource Brush.BorderSubtle}" BorderThickness="1"
+                                CornerRadius="8" Width="240" Padding="14">
+                            <StackPanel>
+                                <TextBlock x:Name="AccountPopupName" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="AccountPopupHandle" Style="{StaticResource Text.Meta}"
+                                           Margin="0,2,0,12" TextTrimming="CharacterEllipsis"/>
+                                <Button Content="Sign out" HorizontalAlignment="Left" Padding="12,5"
+                                        Click="SignOut_Click"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
                     <Button x:Name="RefreshButton" DockPanel.Dock="Right" Style="{StaticResource Button.Icon}"
                             Content="&#xE72C;" ToolTip="Refresh now" Margin="4,0,0,0" Click="RefreshButton_Click"/>
                     <Button x:Name="ThemeToggleButton" DockPanel.Dock="Right" Style="{StaticResource Button.Icon}"

@@ -2,6 +2,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Windows;
+using YouTubeDesktopClient.Account;
 using YouTubeDesktopClient.Api;
 using YouTubeDesktopClient.Auth;
 using YouTubeDesktopClient.Channels;
@@ -43,6 +44,7 @@ public partial class App : Application
     private TrayIconService? _tray;
     private BackgroundSyncService? _sync;
     private MainWindow? _mainWindow;
+    private bool _syncStarted;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -57,6 +59,10 @@ public partial class App : Application
         System.Diagnostics.PresentationTraceSources.Refresh();
         System.Diagnostics.PresentationTraceSources.DataBindingSource.Listeners.Add(new BindingErrorListener());
         System.Diagnostics.PresentationTraceSources.DataBindingSource.Switch.Level = System.Diagnostics.SourceLevels.Warning;
+
+        // Finish a sign-out's profile wipe that couldn't complete last run —
+        // before any WebView2 environment is created against that folder.
+        WebViewProfile.WipeIfPending();
 
         var appDataDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -82,8 +88,11 @@ public partial class App : Application
             isAutoExpandEnabled: () => appSettingsViewModel.AutoExpandFeed);
         var channelViewModel = new ChannelManagementViewModel(apiClient, store, getAccessToken);
 
+        var account = new AccountViewModel(authService, apiClient, store, appDataDir,
+            wipeWebViewProfile: () => _mainWindow?.WipeWebViewProfile());
+
         _mainWindow = new MainWindow(groupsViewModel, feedViewModel, channelViewModel,
-            appSettingsViewModel, store, apiClient, getAccessToken,
+            appSettingsViewModel, store, apiClient, getAccessToken, account,
             onRefreshNow: () => _ = RefreshNowAsync());
         _mainWindow.Show();
 
@@ -91,11 +100,19 @@ public partial class App : Application
         // thread, so the panel refresh has to hop to the UI thread explicitly.
         _sync.SyncCompleted += () => _mainWindow.Dispatcher.Invoke(() => _mainWindow.RefreshPanels());
 
-        // Started only after the handler is attached: Start fires the first run
-        // immediately (TimeSpan.Zero), and a first launch that completed its
-        // sync before the subscription existed would leave the UI stale — the
-        // exact staleness this event is here to fix.
-        _sync.Start(SyncInterval);
+        // The store isn't pointed at an account until AccountViewModel resolves
+        // one, so the sync (which writes cache.json) must not run before then.
+        // Start it the first time an account becomes active, and refresh the
+        // panels on every sign-in / sign-out.
+        account.Changed += () => _mainWindow.Dispatcher.Invoke(() =>
+        {
+            if (account.IsSignedIn && !_syncStarted)
+            {
+                _syncStarted = true;
+                _sync.Start(SyncInterval);
+            }
+            _mainWindow.RefreshPanels();
+        });
 
         _tray = new TrayIconService(
             onOpen: () => { _mainWindow.Show(); _mainWindow.WindowState = WindowState.Normal; },
@@ -103,11 +120,23 @@ public partial class App : Application
             // on the UI thread, where blocking on a task whose continuations
             // are posted back to the dispatcher deadlocks permanently.
             onRefreshNow: () => _ = RefreshNowAsync(),
-            onSignIn: () => _ = SignInIfNeededAsync(authService),
-            onSignOut: () => authService.SignOut(),
             onExit: () => Shutdown());
 
-        _ = SignInIfNeededAsync(authService);
+        _ = StartupAccountAsync(account);
+    }
+
+    private async Task StartupAccountAsync(AccountViewModel account)
+    {
+        try
+        {
+            if (!await account.ResolveAsync())
+                await account.SignInAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Startup account flow failed", ex);
+            Diagnostics.NotificationCenter.Report("Could not sign in — see the log file for details.");
+        }
     }
 
     private async Task RefreshNowAsync()
@@ -120,31 +149,6 @@ public partial class App : Application
         {
             Logger.LogError("Manual refresh failed", ex);
             Diagnostics.NotificationCenter.Report($"Refresh failed: {ex.Message}");
-        }
-    }
-
-    private async Task SignInIfNeededAsync(AuthService authService)
-    {
-        try
-        {
-            var token = await authService.GetAccessTokenSilentAsync();
-            var justSignedIn = token == null;
-            if (justSignedIn)
-                await authService.SignInInteractiveAsync();
-
-            // The background timer's first tick already fired (or is about
-            // to, at TimeSpan.Zero) — but on a first-ever run it fires before
-            // the interactive browser flow above finishes, so it sees "no
-            // token" and does nothing. Without this, a fresh sign-in leaves
-            // the feed empty until the 3-hour timer or a manual tray refresh.
-            if (justSignedIn)
-                await _sync!.RunOnceAsync();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError("Sign-in failed", ex);
-            MessageBox.Show(
-                $"Sign-in failed: {ex.Message}\n\nMake sure you've set a real OAuth client ID in App.xaml.cs.");
         }
     }
 

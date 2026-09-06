@@ -6,7 +6,7 @@ using YouTubeDesktopClient.Storage.Models;
 
 namespace YouTubeDesktopClient.Api;
 
-public class YouTubeApiClient : IYouTubeApiClient
+public class YouTubeApiClient : IYouTubeApiClient, IYouTubeAccountApi
 {
     private const string ApiBase = "https://www.googleapis.com/youtube/v3";
     private readonly HttpClient _http;
@@ -68,6 +68,33 @@ public class YouTubeApiClient : IYouTubeApiClient
         } while (pageToken != null);
 
         return results;
+    }
+
+    public async Task<MyChannel?> GetMyChannelAsync(string accessToken)
+    {
+        var request = BuildRequest(HttpMethod.Get, "channels", accessToken, new()
+        {
+            ["part"] = "snippet",
+            ["mine"] = "true",
+        });
+        using var response = await _http.SendAsync(request);
+        var root = await ReadJsonRootAsync(response);
+        var items = root.GetProperty("items");
+        if (items.GetArrayLength() == 0) return null;
+
+        var item = items[0];
+        var snippet = item.GetProperty("snippet");
+        var thumbnails = snippet.GetProperty("thumbnails");
+        string? thumb =
+            thumbnails.TryGetProperty("default", out var def) && def.TryGetProperty("url", out var u)
+                ? u.GetString() : null;
+        string? handle = snippet.TryGetProperty("customUrl", out var cu) ? cu.GetString() : null;
+
+        return new MyChannel(
+            item.GetProperty("id").GetString()!,
+            snippet.GetProperty("title").GetString() ?? "",
+            thumb,
+            handle);
     }
 
     public async Task<Dictionary<string, ChannelDetails>> FetchChannelsDetailsAsync(

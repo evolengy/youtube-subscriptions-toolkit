@@ -180,4 +180,67 @@ public class SubscriptionStoreTests : IDisposable
 
         Assert.Empty(Directory.GetFiles(_tempDir, "*.tmp"));
     }
+
+    [Fact]
+    public void ActivateAccount_KeepsEachAccountsDataSeparate()
+    {
+        var store = new SubscriptionStore(
+            Path.Combine(_tempDir, "settings.json"), Path.Combine(_tempDir, "cache.json"));
+
+        store.ActivateAccount("UC_A", _tempDir);
+        store.SaveGroups(new() { ["g1"] = new GroupData("A's group", new() { "x" }) });
+
+        store.ActivateAccount("UC_B", _tempDir);
+        Assert.Empty(store.GetGroups());
+        store.SaveGroups(new() { ["g2"] = new GroupData("B's group", new()) });
+
+        store.ActivateAccount("UC_A", _tempDir);
+        Assert.Equal("A's group", store.GetGroups()["g1"].Name);
+    }
+
+    [Fact]
+    public void ActivateAccount_MigratesTheFlatLayoutIntoTheFirstAccountFolderOnce()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "settings.json"),
+            "{\"Groups\":{\"g\":{\"Name\":\"Legacy\",\"ChannelIds\":[]}},\"WatchedVideoIds\":[]}");
+        File.WriteAllText(Path.Combine(_tempDir, "cache.json"),
+            "{\"SubscriptionsCache\":{},\"VideosCache\":{},\"LastSyncedAt\":null}");
+
+        var store = new SubscriptionStore(
+            Path.Combine(_tempDir, "settings.json"), Path.Combine(_tempDir, "cache.json"));
+        store.ActivateAccount("UC_first", _tempDir);
+
+        Assert.Equal("Legacy", store.GetGroups()["g"].Name);
+        Assert.False(File.Exists(Path.Combine(_tempDir, "settings.json")));
+        Assert.True(File.Exists(Path.Combine(_tempDir, "accounts", "UC_first", "settings.json")));
+    }
+
+    [Fact]
+    public void Deactivate_MakesReadsEmptyAndSwallowsWrites()
+    {
+        _store.SaveGroups(new() { ["g1"] = new GroupData("kept", new()) });
+        _store.Deactivate();
+
+        Assert.Empty(_store.GetGroups());                                    // reads empty while signed out
+        _store.SaveGroups(new() { ["g2"] = new GroupData("dropped", new()) }); // swallowed, no throw
+
+        _store.ActivateAccount("UC_A", _tempDir);                            // flat settings.json migrates in
+        Assert.True(_store.GetGroups().ContainsKey("g1"));
+        Assert.False(_store.GetGroups().ContainsKey("g2"));
+    }
+
+    [Fact]
+    public void PruneChannelsFromGroups_StripsIdsFromEveryGroup()
+    {
+        _store.SaveGroups(new()
+        {
+            ["g1"] = new GroupData("Music", new() { "UC1", "UC2", "UC3" }),
+            ["g2"] = new GroupData("News", new() { "UC2", "UC4" }),
+        });
+
+        _store.PruneChannelsFromGroups(new[] { "UC2", "UC3" });
+
+        Assert.Equal(new[] { "UC1" }, _store.GetGroups()["g1"].ChannelIds);
+        Assert.Equal(new[] { "UC4" }, _store.GetGroups()["g2"].ChannelIds);
+    }
 }

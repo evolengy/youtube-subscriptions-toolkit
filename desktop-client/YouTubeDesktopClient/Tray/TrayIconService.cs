@@ -1,4 +1,5 @@
 using System.Windows.Forms;
+using YouTubeDesktopClient.Themes;
 
 namespace YouTubeDesktopClient.Tray;
 
@@ -6,14 +7,14 @@ public class TrayIconService : IDisposable
 {
     private const string StartupValueName = "YouTubeDesktopClient";
     private readonly NotifyIcon _notifyIcon;
+    private readonly ContextMenuStrip _menu;
 
-    public TrayIconService(Action onOpen, Action onRefreshNow, Action onSignIn, Action onSignOut, Action onExit)
+    // Sign in / Sign out live in the toolbar account control now, not here.
+    public TrayIconService(Action onOpen, Action onRefreshNow, Action onExit)
     {
-        var menu = new ContextMenuStrip();
-        menu.Items.Add("Open", null, (_, _) => onOpen());
-        menu.Items.Add("Refresh now", null, (_, _) => onRefreshNow());
-        menu.Items.Add("Sign in", null, (_, _) => onSignIn());
-        menu.Items.Add("Sign out", null, (_, _) => onSignOut());
+        _menu = new ContextMenuStrip();
+        _menu.Items.Add("Open", null, (_, _) => onOpen());
+        _menu.Items.Add("Refresh now", null, (_, _) => onRefreshNow());
 
         var startupItem = new ToolStripMenuItem("Start with Windows")
         {
@@ -28,19 +29,31 @@ public class TrayIconService : IDisposable
             else
                 StartupRegistration.Disable(StartupValueName);
         };
-        menu.Items.Add(startupItem);
+        _menu.Items.Add(startupItem);
 
-        menu.Items.Add("Exit", null, (_, _) => onExit());
+        _menu.Items.Add("Exit", null, (_, _) => onExit());
+
+        TrayMenuTheme.Apply(_menu);
+        ThemeManager.ThemeChanged += OnThemeChanged;
 
         _notifyIcon = new NotifyIcon
         {
             Icon = System.Drawing.SystemIcons.Application,
             Visible = true,
             Text = "YouTube Desktop Client",
-            ContextMenuStrip = menu,
+            ContextMenuStrip = _menu,
         };
         _notifyIcon.DoubleClick += (_, _) => onOpen();
     }
 
-    public void Dispose() => _notifyIcon.Dispose();
+    // ThemeChanged is raised on the UI thread (the toolbar toggle) or marshalled
+    // to it (SystemEvents) — same STA thread the menu lives on.
+    private void OnThemeChanged() => TrayMenuTheme.Apply(_menu);
+
+    public void Dispose()
+    {
+        ThemeManager.ThemeChanged -= OnThemeChanged;
+        _notifyIcon.Dispose();
+        _menu.Dispose();
+    }
 }

@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using YouTubeDesktopClient.Channels;
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
     private readonly Views.FeedPanel _feedPanel;
     private readonly Views.ChannelManagementPanel _channelPanel;
     private readonly Views.SettingsPanel _settingsPanel;
+    private readonly Views.GroupsPanel _groupsPanel;
     private WebView2? _homeWebView;
 
     // The video player = the API action bar stacked on top of PlayerView (the
@@ -64,14 +66,20 @@ public partial class MainWindow : Window
     // The sidebar destination to fall back to when the last video tab closes.
     private string _destination = "feed";
 
+    private readonly Account.AccountViewModel _account;
+
     public MainWindow(GroupsViewModel groupsViewModel, FeedViewModel feedViewModel,
         ChannelManagementViewModel channelViewModel, AppSettingsViewModel settingsViewModel,
         SubscriptionStore store, IYouTubeApiClient apiClient, Func<Task<string?>> getAccessToken,
-        Action onRefreshNow)
+        Account.AccountViewModel account, Action onRefreshNow)
     {
         InitializeComponent();
         _settingsViewModel = settingsViewModel;
+        _account = account;
         _onRefreshNow = onRefreshNow;
+
+        _account.Changed += () => Dispatcher.Invoke(UpdateAccountButton);
+        UpdateAccountButton();
 
         _actionsVm = new VideoActionsViewModel(apiClient, getAccessToken);
         _actionBar = new Views.VideoActionBar(_actionsVm);
@@ -92,7 +100,8 @@ public partial class MainWindow : Window
         _channelPanel = new Views.ChannelManagementPanel(channelViewModel);
         _settingsPanel = new Views.SettingsPanel(settingsViewModel, store);
 
-        GroupsHost.Content = new Views.GroupsPanel(groupsViewModel, OnGroupSelected);
+        _groupsPanel = new Views.GroupsPanel(groupsViewModel, OnGroupSelected);
+        GroupsHost.Content = _groupsPanel;
 
         UpdateThemeToggleLabel();
         ThemeManager.ThemeChanged += UpdateThemeToggleLabel;
@@ -133,6 +142,98 @@ public partial class MainWindow : Window
     private void RefreshButton_Click(object sender, RoutedEventArgs e) => _onRefreshNow();
 
     private void ThemeToggleButton_Click(object sender, RoutedEventArgs e) => _settingsViewModel.CycleTheme();
+
+    // ---- account -----------------------------------------------------
+
+    private void UpdateAccountButton()
+    {
+        if (_account.Channel is not { } me)
+        {
+            AccountPopup.IsOpen = false;
+            AccountButton.Content = new TextBlock
+            {
+                Text = "Sign in",
+                Foreground = (Brush)FindResource("Brush.TextSecondary"),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            AccountButton.ToolTip = "Sign in to your YouTube account";
+            return;
+        }
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        if (!string.IsNullOrEmpty(me.ThumbnailUrl) && SafeBitmap(me.ThumbnailUrl) is { } avatar)
+        {
+            row.Children.Add(new System.Windows.Shapes.Ellipse
+            {
+                Width = 22,
+                Height = 22,
+                VerticalAlignment = VerticalAlignment.Center,
+                Fill = new ImageBrush(avatar) { Stretch = Stretch.UniformToFill },
+            });
+        }
+        row.Children.Add(new TextBlock
+        {
+            Text = me.Title,
+            Margin = new Thickness(8, 0, 0, 0),
+            MaxWidth = 160,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        AccountButton.Content = row;
+        AccountButton.ToolTip = "Account";
+
+        AccountPopupName.Text = me.Title;
+        AccountPopupHandle.Text = me.Handle ?? "Signed in";
+    }
+
+    private static BitmapImage? SafeBitmap(string url)
+    {
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.UriSource = new Uri(url);
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.EndInit();
+            return bmp;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Loading the account avatar failed", ex);
+            return null;
+        }
+    }
+
+    private async void AccountButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_account.IsSignedIn)
+            AccountPopup.IsOpen = !AccountPopup.IsOpen;
+        else
+            await _account.SignInAsync();
+    }
+
+    private async void SignOut_Click(object sender, RoutedEventArgs e)
+    {
+        AccountPopup.IsOpen = false;
+        await _account.SignOutAsync();
+    }
+
+    /// <summary>Sign-out: tear down every WebView2 and clear the shared youtube.com
+    /// profile. The profile folder is held by msedgewebview2 child processes that
+    /// don't exit instantly, so the delete is best-effort now and
+    /// <see cref="WebViewProfile.WipeIfPending"/> finishes it at the next launch.</summary>
+    public void WipeWebViewProfile()
+    {
+        _tabs.CloseAll();
+        foreach (var id in _webViewsByTabId.Keys.ToList()) DisposeWebView(id);
+        if (_homeWebView is { } home) { home.Dispose(); _homeWebView = null; }
+        _webViewEnv = null; // CoreWebView2Environment has no Dispose; dropping the ref frees it
+        _activePlayerWebView = null;
+        RefreshVideoTabs();
+        SelectNav("feed");
+
+        WebViewProfile.RequestWipe();
+    }
 
     // ---- notifications -------------------------------------------------
 
@@ -523,6 +624,7 @@ public partial class MainWindow : Window
     /// </summary>
     public void RefreshPanels()
     {
+        _groupsPanel.Refresh();
         _feedPanel.Refresh();
         _channelPanel.Refresh();
         _settingsPanel.Refresh();

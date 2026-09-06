@@ -2,6 +2,10 @@ namespace YouTubeDesktopClient.Api;
 
 public record SubscriptionEntry(string SubscriptionId, string ChannelId, string Title, string? Thumbnail);
 
+/// <summary>The signed-in user's own channel — the stable key for per-account
+/// storage and what the toolbar account control shows.</summary>
+public record MyChannel(string ChannelId, string Title, string? ThumbnailUrl, string? Handle);
+
 public record ChannelDetails(string ChannelId, string? Country, string UploadsPlaylistId);
 
 /// <summary>The channel that published a video, plus the signed-in user's current

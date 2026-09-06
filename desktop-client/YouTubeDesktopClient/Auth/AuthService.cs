@@ -6,7 +6,7 @@ using YouTubeDesktopClient.Logging;
 
 namespace YouTubeDesktopClient.Auth;
 
-public class AuthService
+public class AuthService : IAuthService
 {
     private const string AuthEndpoint = "https://accounts.google.com/o/oauth2/v2/auth";
     private const string TokenEndpoint = "https://oauth2.googleapis.com/token";

@@ -12,8 +12,14 @@ public class SubscriptionStore
     private const int MaxWatchedIds = 2000;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    private readonly string _settingsPath;
-    private readonly string _cachePath;
+    // Repointed by ActivateAccount to accounts/{id}/. Not readonly: one store
+    // instance follows the active account for the app's lifetime.
+    private string _settingsPath;
+    private string _cachePath;
+
+    // False after Deactivate() (signed out): reads return defaults, writes are
+    // dropped, so the panels go empty without touching the last account's files.
+    private bool _bound = true;
 
     // The background sync thread writes while the UI thread reads (the feed
     // and channel panels refresh on SyncCompleted), so every read-modify-write
@@ -61,28 +67,110 @@ public class SubscriptionStore
         File.Move(tempPath, path, overwrite: true);
     }
 
+    /// <summary>
+    /// Points the store at one account's folder under
+    /// <c>{baseDir}\accounts\{accountId}\</c>. The first call also folds a
+    /// pre-accounts flat <c>settings.json</c>/<c>cache.json</c> into that folder
+    /// (one-time migration). Idempotent; safe to call on every sign-in.
+    /// </summary>
+    public void ActivateAccount(string accountId, string baseDir)
+    {
+        lock (_lock)
+        {
+            var accountsRoot = Path.Combine(baseDir, "accounts");
+            var dir = Path.Combine(accountsRoot, accountId);
+            var flatSettings = Path.Combine(baseDir, "settings.json");
+            var flatCache = Path.Combine(baseDir, "cache.json");
+
+            var firstAccountEver = !Directory.Exists(accountsRoot);
+            Directory.CreateDirectory(dir);
+
+            if (firstAccountEver && File.Exists(flatSettings))
+            {
+                // First sign-in on this machine: the pre-accounts flat files
+                // belong to whoever is signing in now.
+                File.Move(flatSettings, Path.Combine(dir, "settings.json"), overwrite: true);
+                if (File.Exists(flatCache))
+                    File.Move(flatCache, Path.Combine(dir, "cache.json"), overwrite: true);
+            }
+            else
+            {
+                // Any flat files still lying around are orphans from an earlier
+                // partial migration — the per-account folders are authoritative.
+                TryDelete(flatSettings);
+                TryDelete(flatCache);
+            }
+            _settingsPath = Path.Combine(dir, "settings.json");
+            _cachePath = Path.Combine(dir, "cache.json");
+            _bound = true;
+        }
+    }
+
+    /// <summary>Signed out: reads return empty, writes are dropped until the next
+    /// <see cref="ActivateAccount"/>.</summary>
+    public void Deactivate()
+    {
+        lock (_lock) _bound = false;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (IOException ex) { Logger.LogError($"Could not remove orphaned {path}", ex); }
+        catch (UnauthorizedAccessException ex) { Logger.LogError($"Could not remove orphaned {path}", ex); }
+    }
+
     private SettingsFile ReadSettings()
     {
         lock (_lock)
-            return ReadJsonFile(_settingsPath, () => new SettingsFile(new(), new()));
+            return _bound
+                ? ReadJsonFile(_settingsPath, () => new SettingsFile(new(), new()))
+                : new SettingsFile(new(), new());
     }
 
     private void WriteSettings(SettingsFile settings)
     {
         lock (_lock)
+        {
+            if (!_bound) return;
             WriteJsonFile(_settingsPath, settings);
+        }
     }
 
     private CacheFile ReadCache()
     {
         lock (_lock)
-            return ReadJsonFile(_cachePath, () => new CacheFile(new(), new(), null));
+            return _bound
+                ? ReadJsonFile(_cachePath, () => new CacheFile(new(), new(), null))
+                : new CacheFile(new(), new(), null);
     }
 
     private void WriteCache(CacheFile cache)
     {
         lock (_lock)
+        {
+            if (!_bound) return;
             WriteJsonFile(_cachePath, cache);
+        }
+    }
+
+    /// <summary>Removes the given channel ids from every group — called when the
+    /// sync notices they've been unsubscribed on the web.</summary>
+    public void PruneChannelsFromGroups(IReadOnlyCollection<string> channelIds)
+    {
+        if (channelIds.Count == 0) return;
+        lock (_lock)
+        {
+            var settings = ReadSettings();
+            var remove = new HashSet<string>(channelIds);
+            var pruned = settings.Groups.ToDictionary(
+                kv => kv.Key,
+                kv => kv.Value with
+                {
+                    ChannelIds = kv.Value.ChannelIds.Where(c => !remove.Contains(c)).ToList(),
+                });
+            WriteSettings(settings with { Groups = pruned });
+        }
     }
 
     public Dictionary<string, GroupData> GetGroups()

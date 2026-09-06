@@ -546,6 +546,27 @@
         </Setter>
     </Style>
 
+    <!-- ToolTip: the stock template is system-white chrome that ignores the
+         theme — every ToolTip="..." in the app (toolbar, action bar, tab chips)
+         showed as a white box in dark mode until this was added. -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Ui}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="HasDropShadow" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Background="{DynamicResource Brush.Elevated}"
+                            BorderBrush="{DynamicResource Brush.BorderSubtle}" BorderThickness="1"
+                            CornerRadius="{DynamicResource Radius.Control}" Padding="8,5">
+                        <ContentPresenter/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Named: raised card used by the Settings panel -->
     <Style x:Key="Card" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Brush.Elevated}"/>

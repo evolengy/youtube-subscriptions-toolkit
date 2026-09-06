@@ -26,6 +26,19 @@ public partial class GroupsPanel : UserControl
         RefreshChannelList();
     }
 
+    /// <summary>Re-reads the group list from the store — called after a sync, or
+    /// after a sign-in/out swaps which account's data is active.</summary>
+    public void Refresh()
+    {
+        if (_selectedGroupId != null && !_viewModel.GetGroups().ContainsKey(_selectedGroupId))
+        {
+            _selectedGroupId = null;
+            _onGroupSelected(null);
+        }
+        RefreshGroupList();
+        RefreshChannelList();
+    }
+
     private void RefreshGroupList()
     {
         _suppressSelectionEvents = true;

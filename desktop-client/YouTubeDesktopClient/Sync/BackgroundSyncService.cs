@@ -64,6 +64,34 @@ public class BackgroundSyncService
         return "Background sync failed — see the log file for details.";
     }
 
+    /// <summary>
+    /// Compares the freshly-fetched subscription set against the previous one and,
+    /// when it changed, reports the delta to the user and drops any unsubscribed
+    /// channels out of their groups. Skipped on the first-ever sync (nothing to
+    /// diff against).
+    /// </summary>
+    private void ReconcileSubscriptions(
+        Dictionary<string, SubscriptionCacheEntry> previous,
+        Dictionary<string, SubscriptionCacheEntry> current)
+    {
+        if (previous.Count == 0) return;
+
+        var added = current.Keys.Where(id => !previous.ContainsKey(id)).ToList();
+        var removed = previous.Keys.Where(id => !current.ContainsKey(id)).ToList();
+        if (added.Count == 0 && removed.Count == 0) return;
+
+        var parts = new List<string>();
+        if (added.Count > 0) parts.Add($"+{added.Count} new");
+        if (removed.Count > 0) parts.Add($"-{removed.Count} removed");
+        var names = removed.Concat(added)
+            .Select(id => (previous.TryGetValue(id, out var p) ? p : current[id]).Title)
+            .Take(4);
+        Diagnostics.NotificationCenter.Report(
+            $"Subscriptions changed ({string.Join(", ", parts)}): {string.Join(", ", names)}");
+
+        if (removed.Count > 0) _store.PruneChannelsFromGroups(removed);
+    }
+
     public async Task RunOnceAsync()
     {
         var token = await _getAccessToken();
@@ -130,6 +158,8 @@ public class BackgroundSyncService
             var freshVideos = await _api.FetchVideosDetailsAsync(token, playlistResult.VideoIds);
             videosCache[sub.ChannelId] = VideoMerge.Dedup(existingVideos, freshVideos);
         }
+
+        ReconcileSubscriptions(previousCache, subscriptionsCache);
 
         _store.SaveSubscriptionsCache(subscriptionsCache);
         _store.SaveVideosCache(videosCache);
