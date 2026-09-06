@@ -49,8 +49,20 @@ dotnet test --filter "DisplayName~ParsesSingleFullPage"
 - **.NET 10 SDK is required** (`net10.0-windows`); .NET 8/9 will not build it. The plan is
   explicit that 10 is a hard constraint.
 - Runtime data lives in `%AppData%\YouTubeSubscriptionsToolkit\`:
-  `settings.json`, `cache.json`, `token.bin` (DPAPI-encrypted refresh token), `log.txt`.
-  Delete these to reset app state; `log.txt` is the first place to look when debugging a live run.
+  `settings.json`, `cache.json`, `token.bin` (DPAPI-encrypted refresh token), `log.txt`,
+  `WebView2\` (shared browser profile). Delete these to reset app state; `log.txt` is the first
+  place to look when debugging a live run.
+- **Visual testing:** for Claude to drive / screenshot the running app via computer-use, a
+  Start-menu shortcut must exist (computer-use resolves apps by Start-menu name, not by running
+  process). Create it once, then `request_access(["YouTube Desktop Client"])` works after a
+  Claude session restart:
+  ```powershell
+  $exe = "$PWD\YouTubeDesktopClient\bin\Debug\net10.0-windows\YouTubeDesktopClient.exe"
+  $lnk = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\YouTube Desktop Client.lnk"
+  $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+  $s.TargetPath = $exe; $s.WorkingDirectory = (Split-Path $exe); $s.Save()
+  ```
+  (Run from `desktop-client/`. It just points at the dev build — `rm "$lnk"` to remove.)
 - Tests use xUnit with a **hand-written `FakeHttpMessageHandler`** (in
   `YouTubeDesktopClient.Tests/YouTubeApiClientTests.cs`) and hand-written fake
   `IYouTubeApiClient` / `IFeedExpansionService` classes (one per test file, `file`-scoped) —
