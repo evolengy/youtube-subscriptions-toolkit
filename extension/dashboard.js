@@ -11,6 +11,7 @@ let videosByChannel = {};
 let groups = {};
 let watchedIds = new Set();
 let notInterestedIds = new Set();
+let likedIds = new Set();
 let activeGroupId = null;
 
 const el = (id) => document.getElementById(id);
@@ -22,13 +23,17 @@ async function send(message) {
 }
 
 async function loadState() {
-  [subscriptions, videosByChannel, groups, watchedIds, notInterestedIds] = await Promise.all([
-    store.getSubscriptionsCache(),
-    store.getVideosCache(),
-    store.getGroups(),
-    store.getWatchedVideoIds(),
-    store.getNotInterestedVideoIds(),
-  ]);
+  let likedVideos;
+  [subscriptions, videosByChannel, groups, watchedIds, notInterestedIds, likedVideos] =
+    await Promise.all([
+      store.getSubscriptionsCache(),
+      store.getVideosCache(),
+      store.getGroups(),
+      store.getWatchedVideoIds(),
+      store.getNotInterestedVideoIds(),
+      store.getLikedVideos(),
+    ]);
+  likedIds = new Set(Object.keys(likedVideos));
 }
 
 // --- Auth -------------------------------------------------------------
@@ -162,6 +167,8 @@ function renderFeed() {
     channelTitleOf: (channelId) => subscriptions[channelId]?.title ?? "",
     notInterestedIds,
     showNotInterested: el("showNotInterested").checked,
+    likedIds,
+    likedAsWatched: el("likedAsWatched").checked,
   });
 
   for (const video of videos) {
@@ -179,7 +186,8 @@ function iconButton(name, label) {
 }
 
 function renderVideoCard(video) {
-  const watched = watchedIds.has(video.videoId);
+  const liked = video.liked;
+  const watched = watchedIds.has(video.videoId) || (liked && el("likedAsWatched").checked);
   const notInterested = notInterestedIds.has(video.videoId);
 
   const card = document.createElement("div");
@@ -199,7 +207,16 @@ function renderVideoCard(video) {
   title.textContent = video.title;
   const meta = document.createElement("div");
   meta.className = "meta";
-  meta.textContent = `${video.type} · ${video.viewCount.toLocaleString()} views`;
+  meta.append(`${video.type} · ${video.viewCount.toLocaleString()} views`);
+  if (liked) {
+    const thumb = makeIcon("thumb", { size: 14 });
+    thumb.classList.add("liked-mark");
+    const wrap = document.createElement("span");
+    wrap.className = "liked-mark-wrap";
+    wrap.title = "Liked on YouTube";
+    wrap.appendChild(thumb);
+    meta.append(" ", wrap);
+  }
 
   const actions = document.createElement("div");
   actions.className = "card-actions";
@@ -235,6 +252,7 @@ for (const id of [
   "filterUploaded",
   "sortBy",
   "hideWatched",
+  "likedAsWatched",
   "showNotInterested",
 ]) {
   el(id).addEventListener("change", renderFeed);

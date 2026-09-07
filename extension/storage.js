@@ -11,6 +11,7 @@ const LOCAL_KEYS = {
   subscriptionsCache: "subscriptionsCache",
   videosCache: "videosCache",
   lastSyncedAt: "lastSyncedAt",
+  likedVideos: "likedVideos",
 };
 
 // chrome.storage.sync has an 8KB-per-item / ~100KB-total quota, so the watched
@@ -106,6 +107,21 @@ export async function getVideosCache() {
 
 export async function saveVideosCache(cache) {
   await chrome.storage.local.set({ [LOCAL_KEYS.videosCache]: cache });
+}
+
+// Map { videoId: { title, thumbnail, channelId, publishedAt } } — the recent
+// slice of the user's "Liked videos" playlist, re-fetched each sync.
+export async function getLikedVideos() {
+  const { [LOCAL_KEYS.likedVideos]: liked } = await chrome.storage.local.get(
+    LOCAL_KEYS.likedVideos
+  );
+  return liked || {};
+}
+
+export async function saveLikedVideos(list) {
+  const map = {};
+  for (const v of list) map[v.videoId] = v;
+  await chrome.storage.local.set({ [LOCAL_KEYS.likedVideos]: map });
 }
 
 export async function setLastSyncedAt(timestamp) {

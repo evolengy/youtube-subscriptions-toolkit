@@ -203,6 +203,7 @@ html[dark] {
 .yst-video-card img { width: 100%; display: block; }
 .yst-video-card .info { padding: 12px; font-size: 14px; color: var(--yst-text); }
 .yst-video-card .meta { color: var(--yst-text-secondary); font-size: 12px; margin: 4px 0 8px; }
+.yst-liked-mark { display: inline-flex; vertical-align: -2px; color: var(--yst-accent); }
 
 .yst-card-actions { display: flex; gap: 4px; }
 .yst-card-action {

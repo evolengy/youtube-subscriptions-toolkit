@@ -112,3 +112,19 @@ test("applyFilters: not-interested is hidden by default, shown on request", () =
     ["a", "b"]
   );
 });
+
+test("applyFilters: liked flag on rows; liked counts as watched only when opted in", () => {
+  const videos = [vid({ videoId: "a" }), vid({ videoId: "b" })];
+  const likedIds = new Set(["a"]);
+
+  assert.equal(applyFilters(videos, { likedIds }).find((v) => v.videoId === "a").liked, true);
+  assert.equal(applyFilters(videos, { likedIds }).find((v) => v.videoId === "b").liked, false);
+
+  // hideWatched alone doesn't touch liked videos
+  assert.equal(applyFilters(videos, { likedIds, hideWatched: true }).length, 2);
+  // ...unless likedAsWatched is on
+  assert.deepEqual(
+    applyFilters(videos, { likedIds, hideWatched: true, likedAsWatched: true }).map((v) => v.videoId),
+    ["b"]
+  );
+});

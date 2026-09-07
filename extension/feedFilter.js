@@ -74,6 +74,8 @@
       channelTitleOf = () => "",
       notInterestedIds = new Set(),
       showNotInterested = false,
+      likedIds = new Set(),
+      likedAsWatched = false,
     } = opts || {};
 
     const now = Date.now();
@@ -81,15 +83,18 @@
 
     const enriched = videos.map((v) => {
       const durationSeconds = parseIsoDuration(v.duration);
-      return { ...v, durationSeconds, type: classifyVideoType(v, durationSeconds) };
+      const liked = likedIds.has(v.videoId);
+      return { ...v, durationSeconds, type: classifyVideoType(v, durationSeconds), liked };
     });
+
+    const isWatched = (v) => watchedIds.has(v.videoId) || (likedAsWatched && v.liked);
 
     const filtered = enriched.filter((v) => {
       // "Not interested" is hidden by default; showNotInterested surfaces them
       // (so they can be restored).
       if (notInterestedIds.has(v.videoId) && !showNotInterested) return false;
       if (type !== "all" && v.type !== type) return false;
-      if (hideWatched && watchedIds.has(v.videoId)) return false;
+      if (hideWatched && isWatched(v)) return false;
       if (!matchesDuration(v.durationSeconds, duration)) return false;
       if (!matchesUploaded(v.publishedAt, uploadedWithin, now)) return false;
       if (trimmedQuery && !matchesQuery(v, trimmedQuery, channelTitleOf)) return false;

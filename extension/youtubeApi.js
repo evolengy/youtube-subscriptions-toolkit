@@ -157,3 +157,49 @@ export async function fetchVideosDetails(token, videoIds) {
 export async function unsubscribe(token, subscriptionId) {
   await apiFetch("subscriptions", { token, method: "DELETE", params: { id: subscriptionId } });
 }
+
+// The caller's "Liked videos" playlist — the most recent `maxPages * 50` of it.
+// Returns [{ videoId, title, thumbnail, channelId, publishedAt }]. Costs 1 unit
+// for the channel lookup + 1 per page. Read-only; the plain `youtube` scope
+// covers it.
+export async function fetchLikedVideos(token, maxPages = 5) {
+  const me = await apiFetch("channels", {
+    token,
+    params: { part: "contentDetails", mine: "true", maxResults: 1 },
+  });
+  const likesPlaylist = me.items?.[0]?.contentDetails?.relatedPlaylists?.likes;
+  if (!likesPlaylist) return [];
+
+  const results = [];
+  let pageToken;
+  let pages = 0;
+  do {
+    const data = await apiFetch("playlistItems", {
+      token,
+      params: {
+        part: "snippet,contentDetails",
+        playlistId: likesPlaylist,
+        maxResults: 50,
+        pageToken,
+      },
+    });
+    for (const item of data.items ?? []) {
+      const snippet = item.snippet;
+      // Private/removed videos still occupy a slot but carry no real snippet.
+      if (!snippet || snippet.title === "Private video" || snippet.title === "Deleted video") {
+        continue;
+      }
+      results.push({
+        videoId: item.contentDetails.videoId,
+        title: snippet.title,
+        thumbnail:
+          snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url ?? null,
+        channelId: snippet.videoOwnerChannelId ?? null,
+        publishedAt: item.contentDetails.videoPublishedAt ?? snippet.publishedAt,
+      });
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken && ++pages < maxPages);
+
+  return results;
+}

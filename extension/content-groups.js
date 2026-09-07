@@ -41,7 +41,7 @@ async function setGroupIcon(groupId, icon) {
 }
 
 function getLocalData() {
-  return chrome.storage.local.get(["subscriptionsCache", "videosCache"]);
+  return chrome.storage.local.get(["subscriptionsCache", "videosCache", "likedVideos"]);
 }
 
 async function markWatched(videoId) {
@@ -253,7 +253,7 @@ async function toggleOverlay(groupKey) {
 async function getVisibleVideos(groupKey) {
   const [
     { groups, watchedVideoIds, notInterestedVideoIds },
-    { subscriptionsCache, videosCache },
+    { subscriptionsCache, videosCache, likedVideos },
   ] = await Promise.all([getSyncData(), getLocalData()]);
 
   const channelIds =
@@ -269,6 +269,7 @@ async function getVisibleVideos(groupKey) {
     videos,
     watchedIds: new Set(watchedVideoIds || []),
     notInterestedIds: new Set(notInterestedVideoIds || []),
+    likedIds: new Set(Object.keys(likedVideos || {})),
     channelTitleOf: (id) => (subscriptionsCache || {})[id]?.title ?? "",
   };
 }
@@ -325,6 +326,13 @@ async function renderOverlay() {
   hideWatchedLabel.append(hideWatchedCheckbox, document.createTextNode(" Hide watched"));
   header.appendChild(hideWatchedLabel);
 
+  const likedWatchedLabel = document.createElement("label");
+  const likedWatchedCheckbox = document.createElement("input");
+  likedWatchedCheckbox.type = "checkbox";
+  likedWatchedCheckbox.checked = true;
+  likedWatchedLabel.append(likedWatchedCheckbox, document.createTextNode(" Liked = watched"));
+  header.appendChild(likedWatchedLabel);
+
   const showNiLabel = document.createElement("label");
   const showNiCheckbox = document.createElement("input");
   showNiCheckbox.type = "checkbox";
@@ -349,8 +357,9 @@ async function renderOverlay() {
   overlay.append(header, feed);
 
   const rerenderFeed = async () => {
-    const { videos, watchedIds, notInterestedIds, channelTitleOf } =
+    const { videos, watchedIds, notInterestedIds, likedIds, channelTitleOf } =
       await getVisibleVideos(activeGroupKey);
+    const likedAsWatched = likedWatchedCheckbox.checked;
     const filtered = applyFilters(videos, {
       type: typeSelect.value,
       sortBy: sortSelect.value,
@@ -362,14 +371,17 @@ async function renderOverlay() {
       channelTitleOf,
       notInterestedIds,
       showNotInterested: showNiCheckbox.checked,
+      likedIds,
+      likedAsWatched,
     });
 
     feed.replaceChildren();
     for (const video of filtered) {
       feed.appendChild(
         buildVideoCard(video, {
-          watched: watchedIds.has(video.videoId),
+          watched: watchedIds.has(video.videoId) || (video.liked && likedAsWatched),
           notInterested: notInterestedIds.has(video.videoId),
+          liked: video.liked,
           onChange: rerenderFeed,
         })
       );
@@ -382,6 +394,7 @@ async function renderOverlay() {
     uploadedSelect,
     sortSelect,
     hideWatchedCheckbox,
+    likedWatchedCheckbox,
     showNiCheckbox,
   ]) {
     control.addEventListener("change", rerenderFeed);
@@ -399,7 +412,7 @@ function iconButton(name, label) {
   return btn;
 }
 
-function buildVideoCard(video, { watched, notInterested, onChange }) {
+function buildVideoCard(video, { watched, notInterested, liked, onChange }) {
   const card = document.createElement("div");
   card.className =
     "yst-video-card" + (watched ? " watched" : "") + (notInterested ? " not-interested" : "");
@@ -417,7 +430,14 @@ function buildVideoCard(video, { watched, notInterested, onChange }) {
   title.textContent = video.title;
   const meta = document.createElement("div");
   meta.className = "meta";
-  meta.textContent = `${video.type} · ${video.viewCount.toLocaleString()} views`;
+  meta.append(`${video.type} · ${video.viewCount.toLocaleString()} views`);
+  if (liked) {
+    const wrap = document.createElement("span");
+    wrap.className = "yst-liked-mark";
+    wrap.title = "Liked on YouTube";
+    wrap.appendChild(makeIcon("thumb", { size: 14 }));
+    meta.append(" ", wrap);
+  }
 
   const actions = document.createElement("div");
   actions.className = "yst-card-actions";

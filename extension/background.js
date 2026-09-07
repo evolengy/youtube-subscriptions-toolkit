@@ -112,5 +112,14 @@ async function refreshAll() {
     videosCache[channelId] = videos;
   }
   await store.saveVideosCache(videosCache);
+
+  // Liked videos — a bonus signal for the feed ("liked = watched"). A failure
+  // here must not fail the whole sync.
+  try {
+    await store.saveLikedVideos(await api.fetchLikedVideos(token));
+  } catch (err) {
+    console.error("[YST] fetchLikedVideos failed", err);
+  }
+
   await store.setLastSyncedAt(Date.now());
 }
