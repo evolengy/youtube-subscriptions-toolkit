@@ -283,8 +283,11 @@ before the page's ES module; content-script ones also listed in the manifest `js
 `feedFilter.js` (feed filter/sort, shared dashboard + overlay), `channelHealth.js`
 (activity classification, `channels.html`), `groupEditor.js` (`groups.html`),
 `emojiPicker.js` + `emojiData.js` (group-icon picker, used by `groups.html` and the
-content script). All group create/rename/delete/icon/assignment lives in `groups.html`;
-the dashboard's group list is a read-only feed filter.
+content script), `icons.js` (`window.YSTIcons.make` — inline-SVG card-action icons,
+dashboard + content script). All group create/rename/delete/icon/assignment lives in
+`groups.html`; the dashboard's group list is a read-only feed filter. "Not interested"
+is an extension-only per-video hide list (`storage.js`), filtered from the feed by
+default — YouTube has no API for its own equivalent.
 
 YouTube-DOM realities worth knowing before touching the content script are in
 `extension/STATUS.md` → "Совместимость с DOM YouTube". `extension/STATUS.md` is otherwise the

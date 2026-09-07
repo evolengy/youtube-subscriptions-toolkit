@@ -151,12 +151,11 @@ html[dark] {
   cursor: pointer;
 }
 
-/* Pill controls — shared shape for the filter selects, search box, Close, and
-   the per-card "Mark watched" button, matching YouTube's chip buttons. */
+/* Pill controls — shared shape for the filter selects, search box and Close,
+   matching YouTube's chip buttons. */
 .yst-overlay-header select,
 .yst-overlay-header .yst-search,
-.yst-close-btn,
-.yst-video-card button {
+.yst-close-btn {
   height: 36px;
   padding: 0 16px;
   border: none;
@@ -167,8 +166,7 @@ html[dark] {
   cursor: pointer;
 }
 .yst-overlay-header select:hover,
-.yst-close-btn:hover,
-.yst-video-card button:hover {
+.yst-close-btn:hover {
   background: var(--yst-chip-bg-hover);
 }
 .yst-overlay-header select {
@@ -200,13 +198,21 @@ html[dark] {
   border-radius: 12px;
   overflow: hidden;
 }
-.yst-video-card.watched { opacity: 0.45; }
+.yst-video-card.watched,
+.yst-video-card.not-interested { opacity: 0.45; }
 .yst-video-card img { width: 100%; display: block; }
 .yst-video-card .info { padding: 12px; font-size: 14px; color: var(--yst-text); }
 .yst-video-card .meta { color: var(--yst-text-secondary); font-size: 12px; margin: 4px 0 8px; }
-.yst-video-card button {
-  height: 32px;
-  padding: 0 12px;
-  font-size: 12px;
-  border-radius: 16px;
+
+.yst-card-actions { display: flex; gap: 4px; }
+.yst-card-action {
+  display: inline-flex;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--yst-text-secondary);
+  cursor: pointer;
 }
+.yst-card-action:hover { background: var(--yst-chip-bg); color: var(--yst-text); }
+.yst-card-action.on { color: var(--yst-accent); }

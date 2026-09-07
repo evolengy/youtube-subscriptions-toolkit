@@ -2,7 +2,11 @@
 // Sync storage: user settings the person actually curated (groups, watched list).
 // Local storage: everything re-fetchable from the API (subscription/video cache).
 
-const SYNC_KEYS = { groups: "groups", watchedVideoIds: "watchedVideoIds" };
+const SYNC_KEYS = {
+  groups: "groups",
+  watchedVideoIds: "watchedVideoIds",
+  notInterestedVideoIds: "notInterestedVideoIds",
+};
 const LOCAL_KEYS = {
   subscriptionsCache: "subscriptionsCache",
   videosCache: "videosCache",
@@ -58,6 +62,28 @@ export async function markVideoWatched(videoId) {
   ids.add(videoId);
   const trimmed = Array.from(ids).slice(-MAX_WATCHED_IDS);
   await chrome.storage.sync.set({ [SYNC_KEYS.watchedVideoIds]: trimmed });
+}
+
+// "Not interested" — an extension-only list (YouTube has no API for its own).
+// Hidden from the feed by default; capped like the watched list.
+export async function getNotInterestedVideoIds() {
+  const { [SYNC_KEYS.notInterestedVideoIds]: ids } = await chrome.storage.sync.get(
+    SYNC_KEYS.notInterestedVideoIds
+  );
+  return new Set(ids || []);
+}
+
+export async function addNotInterested(videoId) {
+  const ids = await getNotInterestedVideoIds();
+  ids.add(videoId);
+  const trimmed = Array.from(ids).slice(-MAX_WATCHED_IDS);
+  await chrome.storage.sync.set({ [SYNC_KEYS.notInterestedVideoIds]: trimmed });
+}
+
+export async function removeNotInterested(videoId) {
+  const ids = await getNotInterestedVideoIds();
+  if (!ids.delete(videoId)) return;
+  await chrome.storage.sync.set({ [SYNC_KEYS.notInterestedVideoIds]: Array.from(ids) });
 }
 
 export async function getSubscriptionsCache() {

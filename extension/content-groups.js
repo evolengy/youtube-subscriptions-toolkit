@@ -17,6 +17,7 @@ let activeGroupKey = null;
 
 const { applyFilters } = window.YSTFeed;
 const { openEmojiPicker } = window.YSTEmoji;
+const { make: makeIcon } = window.YSTIcons;
 
 const DEFAULT_GROUP_ICON = "📁";
 
@@ -24,7 +25,7 @@ const DEFAULT_GROUP_ICON = "📁";
 const warn = (...a) => console.warn("[YST]", ...a);
 
 function getSyncData() {
-  return chrome.storage.sync.get(["groups", "watchedVideoIds"]);
+  return chrome.storage.sync.get(["groups", "watchedVideoIds", "notInterestedVideoIds"]);
 }
 
 // storage.js is an ES module the dashboard imports; the content script writes
@@ -49,6 +50,16 @@ async function markWatched(videoId) {
   ids.add(videoId);
   const trimmed = Array.from(ids).slice(-MAX_WATCHED_IDS);
   await chrome.storage.sync.set({ watchedVideoIds: trimmed });
+}
+
+async function toggleNotInterested(videoId, add) {
+  const { notInterestedVideoIds } = await getSyncData();
+  const ids = new Set(notInterestedVideoIds || []);
+  if (add) ids.add(videoId);
+  else ids.delete(videoId);
+  await chrome.storage.sync.set({
+    notInterestedVideoIds: Array.from(ids).slice(-MAX_WATCHED_IDS),
+  });
 }
 
 // --- Sidebar -------------------------------------------------------------
@@ -240,10 +251,10 @@ async function toggleOverlay(groupKey) {
 }
 
 async function getVisibleVideos(groupKey) {
-  const [{ groups, watchedVideoIds }, { subscriptionsCache, videosCache }] = await Promise.all([
-    getSyncData(),
-    getLocalData(),
-  ]);
+  const [
+    { groups, watchedVideoIds, notInterestedVideoIds },
+    { subscriptionsCache, videosCache },
+  ] = await Promise.all([getSyncData(), getLocalData()]);
 
   const channelIds =
     groupKey === ALL_KEY
@@ -257,6 +268,7 @@ async function getVisibleVideos(groupKey) {
   return {
     videos,
     watchedIds: new Set(watchedVideoIds || []),
+    notInterestedIds: new Set(notInterestedVideoIds || []),
     channelTitleOf: (id) => (subscriptionsCache || {})[id]?.title ?? "",
   };
 }
@@ -313,6 +325,12 @@ async function renderOverlay() {
   hideWatchedLabel.append(hideWatchedCheckbox, document.createTextNode(" Hide watched"));
   header.appendChild(hideWatchedLabel);
 
+  const showNiLabel = document.createElement("label");
+  const showNiCheckbox = document.createElement("input");
+  showNiCheckbox.type = "checkbox";
+  showNiLabel.append(showNiCheckbox, document.createTextNode(" Show not interested"));
+  header.appendChild(showNiLabel);
+
   const searchInput = document.createElement("input");
   searchInput.type = "search";
   searchInput.className = "yst-search";
@@ -331,7 +349,8 @@ async function renderOverlay() {
   overlay.append(header, feed);
 
   const rerenderFeed = async () => {
-    const { videos, watchedIds, channelTitleOf } = await getVisibleVideos(activeGroupKey);
+    const { videos, watchedIds, notInterestedIds, channelTitleOf } =
+      await getVisibleVideos(activeGroupKey);
     const filtered = applyFilters(videos, {
       type: typeSelect.value,
       sortBy: sortSelect.value,
@@ -341,24 +360,49 @@ async function renderOverlay() {
       uploadedWithin: uploadedSelect.value,
       query: searchInput.value,
       channelTitleOf,
+      notInterestedIds,
+      showNotInterested: showNiCheckbox.checked,
     });
 
     feed.replaceChildren();
     for (const video of filtered) {
-      feed.appendChild(buildVideoCard(video, watchedIds.has(video.videoId), rerenderFeed));
+      feed.appendChild(
+        buildVideoCard(video, {
+          watched: watchedIds.has(video.videoId),
+          notInterested: notInterestedIds.has(video.videoId),
+          onChange: rerenderFeed,
+        })
+      );
     }
   };
 
-  for (const control of [typeSelect, durationSelect, uploadedSelect, sortSelect, hideWatchedCheckbox]) {
+  for (const control of [
+    typeSelect,
+    durationSelect,
+    uploadedSelect,
+    sortSelect,
+    hideWatchedCheckbox,
+    showNiCheckbox,
+  ]) {
     control.addEventListener("change", rerenderFeed);
   }
   searchInput.addEventListener("input", rerenderFeed);
   await rerenderFeed();
 }
 
-function buildVideoCard(video, watched, onWatchedChange) {
+function iconButton(name, label) {
+  const btn = document.createElement("button");
+  btn.className = "yst-card-action";
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+  btn.appendChild(makeIcon(name));
+  return btn;
+}
+
+function buildVideoCard(video, { watched, notInterested, onChange }) {
   const card = document.createElement("div");
-  card.className = "yst-video-card" + (watched ? " watched" : "");
+  card.className =
+    "yst-video-card" + (watched ? " watched" : "") + (notInterested ? " not-interested" : "");
 
   const link = document.createElement("a");
   link.href = `/watch?v=${video.videoId}`;
@@ -375,14 +419,27 @@ function buildVideoCard(video, watched, onWatchedChange) {
   meta.className = "meta";
   meta.textContent = `${video.type} · ${video.viewCount.toLocaleString()} views`;
 
-  const watchBtn = document.createElement("button");
-  watchBtn.textContent = watched ? "Watched" : "Mark watched";
+  const actions = document.createElement("div");
+  actions.className = "yst-card-actions";
+
+  const watchBtn = iconButton("check", watched ? "Watched" : "Mark watched");
+  watchBtn.classList.toggle("on", watched);
   watchBtn.addEventListener("click", async () => {
     await markWatched(video.videoId);
-    onWatchedChange();
+    onChange();
   });
 
-  info.append(title, meta, watchBtn);
+  const niBtn = iconButton(
+    notInterested ? "undo" : "ban",
+    notInterested ? "Restore" : "Not interested"
+  );
+  niBtn.addEventListener("click", async () => {
+    await toggleNotInterested(video.videoId, !notInterested);
+    onChange();
+  });
+
+  actions.append(watchBtn, niBtn);
+  info.append(title, meta, actions);
   card.append(link, info);
   return card;
 }

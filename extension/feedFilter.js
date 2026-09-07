@@ -72,6 +72,8 @@
       uploadedWithin = "any",
       query = "",
       channelTitleOf = () => "",
+      notInterestedIds = new Set(),
+      showNotInterested = false,
     } = opts || {};
 
     const now = Date.now();
@@ -83,6 +85,9 @@
     });
 
     const filtered = enriched.filter((v) => {
+      // "Not interested" is hidden by default; showNotInterested surfaces them
+      // (so they can be restored).
+      if (notInterestedIds.has(v.videoId) && !showNotInterested) return false;
       if (type !== "all" && v.type !== type) return false;
       if (hideWatched && watchedIds.has(v.videoId)) return false;
       if (!matchesDuration(v.durationSeconds, duration)) return false;

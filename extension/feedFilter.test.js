@@ -102,3 +102,13 @@ test("applyFilters: blank query keeps everything", () => {
   const videos = [vid({ videoId: "a" }), vid({ videoId: "b" })];
   assert.equal(applyFilters(videos, { query: "   " }).length, 2);
 });
+
+test("applyFilters: not-interested is hidden by default, shown on request", () => {
+  const videos = [vid({ videoId: "a" }), vid({ videoId: "b" })];
+  const notInterestedIds = new Set(["a"]);
+  assert.deepEqual(applyFilters(videos, { notInterestedIds }).map((v) => v.videoId), ["b"]);
+  assert.deepEqual(
+    applyFilters(videos, { notInterestedIds, showNotInterested: true }).map((v) => v.videoId).sort(),
+    ["a", "b"]
+  );
+});

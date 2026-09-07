@@ -24,7 +24,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/*"],
-      "js": ["feedFilter.js", "emojiData.js", "emojiPicker.js", "content-groups.js"],
+      "js": ["feedFilter.js", "emojiData.js", "emojiPicker.js", "icons.js", "content-groups.js"],
       "css": ["content-groups.css", "emojiPicker.css"],
       "run_at": "document_idle"
     }

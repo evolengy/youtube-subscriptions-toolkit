@@ -73,8 +73,20 @@ button:hover { background: #3f3f3f; }
 .feed-controls input[type="search"] { min-width: 200px; }
 .feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .video-card { background: #181818; border-radius: 8px; overflow: hidden; }
-.video-card.watched { opacity: 0.45; }
+.video-card.watched, .video-card.not-interested { opacity: 0.45; }
 .video-card img { width: 100%; display: block; }
 .video-card .info { padding: 8px; font-size: 13px; }
 .video-card .meta { color: #aaa; font-size: 12px; margin-top: 4px; }
-.video-card button { margin-top: 6px; font-size: 12px; padding: 3px 10px; }
+
+.card-actions { display: flex; gap: 4px; margin-top: 6px; }
+.card-action {
+  display: inline-flex;
+  padding: 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+}
+.card-action:hover { background: #303030; color: #f1f1f1; }
+.card-action.on { color: #3ea6ff; }

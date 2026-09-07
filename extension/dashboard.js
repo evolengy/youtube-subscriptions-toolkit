@@ -1,7 +1,8 @@
 import * as store from "./storage.js";
 
-// feedFilter.js (plain <script> in dashboard.html, ahead of this module).
+// Plain <script>s in dashboard.html, ahead of this module.
 const { applyFilters } = window.YSTFeed;
+const { make: makeIcon } = window.YSTIcons;
 
 const DEFAULT_GROUP_ICON = "📁";
 
@@ -9,6 +10,7 @@ let subscriptions = {};
 let videosByChannel = {};
 let groups = {};
 let watchedIds = new Set();
+let notInterestedIds = new Set();
 let activeGroupId = null;
 
 const el = (id) => document.getElementById(id);
@@ -20,11 +22,12 @@ async function send(message) {
 }
 
 async function loadState() {
-  [subscriptions, videosByChannel, groups, watchedIds] = await Promise.all([
+  [subscriptions, videosByChannel, groups, watchedIds, notInterestedIds] = await Promise.all([
     store.getSubscriptionsCache(),
     store.getVideosCache(),
     store.getGroups(),
     store.getWatchedVideoIds(),
+    store.getNotInterestedVideoIds(),
   ]);
 }
 
@@ -157,6 +160,8 @@ function renderFeed() {
     uploadedWithin: el("filterUploaded").value,
     query: el("searchQuery").value,
     channelTitleOf: (channelId) => subscriptions[channelId]?.title ?? "",
+    notInterestedIds,
+    showNotInterested: el("showNotInterested").checked,
   });
 
   for (const video of videos) {
@@ -164,9 +169,22 @@ function renderFeed() {
   }
 }
 
+function iconButton(name, label) {
+  const btn = document.createElement("button");
+  btn.className = "card-action";
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+  btn.appendChild(makeIcon(name));
+  return btn;
+}
+
 function renderVideoCard(video) {
+  const watched = watchedIds.has(video.videoId);
+  const notInterested = notInterestedIds.has(video.videoId);
+
   const card = document.createElement("div");
-  card.className = "video-card" + (watchedIds.has(video.videoId) ? " watched" : "");
+  card.className =
+    "video-card" + (watched ? " watched" : "") + (notInterested ? " not-interested" : "");
 
   const link = document.createElement("a");
   link.href = `https://www.youtube.com/watch?v=${video.videoId}`;
@@ -183,20 +201,42 @@ function renderVideoCard(video) {
   meta.className = "meta";
   meta.textContent = `${video.type} · ${video.viewCount.toLocaleString()} views`;
 
-  const watchBtn = document.createElement("button");
-  watchBtn.textContent = watchedIds.has(video.videoId) ? "Watched" : "Mark watched";
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
+
+  const watchBtn = iconButton("check", watched ? "Watched" : "Mark watched");
+  watchBtn.classList.toggle("on", watched);
   watchBtn.addEventListener("click", async () => {
     await store.markVideoWatched(video.videoId);
     watchedIds = await store.getWatchedVideoIds();
     renderFeed();
   });
 
-  info.append(title, meta, watchBtn);
+  const niBtn = iconButton(
+    notInterested ? "undo" : "ban",
+    notInterested ? "Restore" : "Not interested"
+  );
+  niBtn.addEventListener("click", async () => {
+    if (notInterested) await store.removeNotInterested(video.videoId);
+    else await store.addNotInterested(video.videoId);
+    notInterestedIds = await store.getNotInterestedVideoIds();
+    renderFeed();
+  });
+
+  actions.append(watchBtn, niBtn);
+  info.append(title, meta, actions);
   card.append(link, info);
   return card;
 }
 
-for (const id of ["filterType", "filterDuration", "filterUploaded", "sortBy", "hideWatched"]) {
+for (const id of [
+  "filterType",
+  "filterDuration",
+  "filterUploaded",
+  "sortBy",
+  "hideWatched",
+  "showNotInterested",
+]) {
   el(id).addEventListener("change", renderFeed);
 }
 el("searchQuery").addEventListener("input", renderFeed);
