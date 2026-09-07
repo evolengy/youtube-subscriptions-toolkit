@@ -74,6 +74,18 @@ html[dark] {
 .yst-group-row.active {
   background: var(--yst-hover);
 }
+.yst-group-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.yst-group-main > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.yst-group-icon { flex: none; font-size: 15px; line-height: 1; }
 .yst-group-row .count {
   color: var(--yst-text-secondary);
   font-size: 12px;

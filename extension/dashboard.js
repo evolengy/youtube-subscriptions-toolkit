@@ -4,6 +4,7 @@ import * as store from "./storage.js";
 // module: feed filtering (shared with the overlay) and channel-health.
 const { applyFilters } = window.YSTFeed;
 const { classifyChannel } = window.YSTHealth;
+const { openEmojiPicker } = window.YSTEmoji;
 
 let subscriptions = {};
 let videosByChannel = {};
@@ -108,6 +109,26 @@ function renderGroups() {
     const item = document.createElement("li");
     item.className = groupId === activeGroupId ? "active" : "";
 
+    const icon = document.createElement("button");
+    icon.type = "button";
+    icon.className = "group-icon";
+    icon.textContent = group.icon || "◇";
+    icon.title = "Change icon";
+    icon.addEventListener("click", (evt) => {
+      evt.stopPropagation();
+      openEmojiPicker(icon, {
+        current: group.icon,
+        onPick: async (char) => {
+          groups = await store.setGroupIcon(groupId, char);
+          renderGroups();
+        },
+        onClear: async () => {
+          groups = await store.setGroupIcon(groupId, "");
+          renderGroups();
+        },
+      });
+    });
+
     const label = document.createElement("span");
     label.textContent = `${group.name} (${group.channelIds.length})`;
     label.addEventListener("click", () => {
@@ -129,10 +150,25 @@ function renderGroups() {
       renderFeed();
     });
 
-    item.append(label, del);
+    item.append(icon, label, del);
     list.appendChild(item);
   }
 }
+
+let pendingGroupIcon = "";
+el("newGroupIcon").addEventListener("click", () => {
+  openEmojiPicker(el("newGroupIcon"), {
+    current: pendingGroupIcon,
+    onPick: (char) => {
+      pendingGroupIcon = char;
+      el("newGroupIcon").textContent = char;
+    },
+    onClear: () => {
+      pendingGroupIcon = "";
+      el("newGroupIcon").textContent = "◇";
+    },
+  });
+});
 
 el("newGroupForm").addEventListener("submit", async (evt) => {
   evt.preventDefault();
@@ -141,7 +177,10 @@ el("newGroupForm").addEventListener("submit", async (evt) => {
   if (!name) return;
   const groupId = `g_${Date.now()}`;
   groups = await store.upsertGroup(groupId, name, []);
+  if (pendingGroupIcon) groups = await store.setGroupIcon(groupId, pendingGroupIcon);
   nameInput.value = "";
+  pendingGroupIcon = "";
+  el("newGroupIcon").textContent = "◇";
   renderGroups();
 });
 

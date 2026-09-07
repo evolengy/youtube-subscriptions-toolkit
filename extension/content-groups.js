@@ -88,9 +88,11 @@ async function renderSidebar() {
   title.textContent = "My groups";
   section.appendChild(title);
 
-  section.appendChild(buildGroupRow(ALL_KEY, "All subscriptions", null));
+  section.appendChild(buildGroupRow(ALL_KEY, "All subscriptions", null, ""));
   for (const [groupId, group] of entries) {
-    section.appendChild(buildGroupRow(groupId, group.name, group.channelIds.length));
+    section.appendChild(
+      buildGroupRow(groupId, group.name, group.channelIds.length, group.icon)
+    );
   }
 
   const manageLink = document.createElement("div");
@@ -108,14 +110,23 @@ function refreshSidebar() {
   renderSidebar().catch((e) => warn("renderSidebar failed", e));
 }
 
-function buildGroupRow(key, label, count) {
+function buildGroupRow(key, label, count, icon) {
   const row = document.createElement("div");
   row.className = "yst-group-row" + (key === activeGroupKey ? " active" : "");
   row.dataset.groupKey = key;
 
+  const main = document.createElement("span");
+  main.className = "yst-group-main";
+  if (icon) {
+    const iconEl = document.createElement("span");
+    iconEl.className = "yst-group-icon";
+    iconEl.textContent = icon;
+    main.appendChild(iconEl);
+  }
   const name = document.createElement("span");
   name.textContent = label;
-  row.appendChild(name);
+  main.appendChild(name);
+  row.appendChild(main);
 
   if (count !== null) {
     const countEl = document.createElement("span");
@@ -232,14 +243,15 @@ async function renderOverlay() {
   }
 
   const { groups } = await getSyncData();
-  const groupLabel = activeGroupKey === ALL_KEY ? "All subscriptions" : groups?.[activeGroupKey]?.name ?? "";
+  const group = activeGroupKey === ALL_KEY ? null : groups?.[activeGroupKey];
+  const groupLabel = activeGroupKey === ALL_KEY ? "All subscriptions" : group?.name ?? "";
 
   overlay.replaceChildren(); // not innerHTML — Trusted-Types CSP, see renderSidebar
   const header = document.createElement("div");
   header.className = "yst-overlay-header";
 
   const heading = document.createElement("h2");
-  heading.textContent = groupLabel;
+  heading.textContent = group?.icon ? `${group.icon} ${groupLabel}` : groupLabel;
   header.appendChild(heading);
 
   const typeSelect = buildSelect([

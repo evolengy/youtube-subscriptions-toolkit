@@ -24,7 +24,17 @@ export async function saveGroups(groups) {
 
 export async function upsertGroup(groupId, name, channelIds) {
   const groups = await getGroups();
-  groups[groupId] = { name, channelIds };
+  // Spread the existing entry so other fields (icon) survive a name/channel edit.
+  groups[groupId] = { ...groups[groupId], name, channelIds };
+  await saveGroups(groups);
+  return groups;
+}
+
+export async function setGroupIcon(groupId, icon) {
+  const groups = await getGroups();
+  if (!groups[groupId]) return groups;
+  if (icon) groups[groupId].icon = icon;
+  else delete groups[groupId].icon;
   await saveGroups(groups);
   return groups;
 }
