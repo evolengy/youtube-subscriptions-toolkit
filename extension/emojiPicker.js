@@ -1,6 +1,6 @@
 // Floating emoji picker for the group-icon feature. Reads emojiData.js
-// (window.YSTEmojiData), publishes window.YSTEmoji. Dashboard-only; styles live
-// in dashboard.css (.yst-emoji-*).
+// (window.YSTEmojiData), publishes window.YSTEmoji. Used by both the dashboard
+// and the content script; styling is emojiPicker.css.
 
 (function (root) {
   const SEGMENTER =

@@ -85,7 +85,17 @@ html[dark] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.yst-group-icon { flex: none; font-size: 15px; line-height: 1; }
+.yst-group-icon {
+  flex: none;
+  font: 15px/1 var(--yst-font);
+  padding: 2px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.yst-group-icon:hover { background: var(--yst-border); }
 .yst-group-row .count {
   color: var(--yst-text-secondary);
   font-size: 12px;

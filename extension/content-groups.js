@@ -16,12 +16,27 @@ const ALL_KEY = "__all__";
 let activeGroupKey = null;
 
 const { applyFilters } = window.YSTFeed;
+const { openEmojiPicker } = window.YSTEmoji;
+
+const DEFAULT_GROUP_ICON = "📁";
 
 // Content-script failures are otherwise silent — surface them with a tag.
 const warn = (...a) => console.warn("[YST]", ...a);
 
 function getSyncData() {
   return chrome.storage.sync.get(["groups", "watchedVideoIds"]);
+}
+
+// storage.js is an ES module the dashboard imports; the content script writes
+// chrome.storage.sync directly, same as markWatched(). The storage.onChanged
+// listener below re-renders the sidebar afterwards.
+async function setGroupIcon(groupId, icon) {
+  const { groups } = await chrome.storage.sync.get("groups");
+  const map = groups || {};
+  if (!map[groupId]) return;
+  if (icon) map[groupId].icon = icon;
+  else delete map[groupId].icon;
+  await chrome.storage.sync.set({ groups: map });
 }
 
 function getLocalData() {
@@ -117,12 +132,25 @@ function buildGroupRow(key, label, count, icon) {
 
   const main = document.createElement("span");
   main.className = "yst-group-main";
-  if (icon) {
-    const iconEl = document.createElement("span");
+
+  if (key !== ALL_KEY) {
+    // Clickable icon — opens the picker instead of switching to the group.
+    const iconEl = document.createElement("button");
+    iconEl.type = "button";
     iconEl.className = "yst-group-icon";
-    iconEl.textContent = icon;
+    iconEl.textContent = icon || DEFAULT_GROUP_ICON;
+    iconEl.title = "Change icon";
+    iconEl.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openEmojiPicker(iconEl, {
+        current: icon,
+        onPick: (char) => setGroupIcon(key, char),
+        onClear: () => setGroupIcon(key, ""),
+      });
+    });
     main.appendChild(iconEl);
   }
+
   const name = document.createElement("span");
   name.textContent = label;
   main.appendChild(name);
@@ -251,7 +279,7 @@ async function renderOverlay() {
   header.className = "yst-overlay-header";
 
   const heading = document.createElement("h2");
-  heading.textContent = group?.icon ? `${group.icon} ${groupLabel}` : groupLabel;
+  heading.textContent = group ? `${group.icon || DEFAULT_GROUP_ICON} ${groupLabel}` : groupLabel;
   header.appendChild(heading);
 
   const typeSelect = buildSelect([

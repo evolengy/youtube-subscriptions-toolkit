@@ -6,6 +6,8 @@ const { applyFilters } = window.YSTFeed;
 const { classifyChannel } = window.YSTHealth;
 const { openEmojiPicker } = window.YSTEmoji;
 
+const DEFAULT_GROUP_ICON = "📁";
+
 let subscriptions = {};
 let videosByChannel = {};
 let groups = {};
@@ -112,7 +114,7 @@ function renderGroups() {
     const icon = document.createElement("button");
     icon.type = "button";
     icon.className = "group-icon";
-    icon.textContent = group.icon || "◇";
+    icon.textContent = group.icon || DEFAULT_GROUP_ICON;
     icon.title = "Change icon";
     icon.addEventListener("click", (evt) => {
       evt.stopPropagation();
@@ -156,6 +158,7 @@ function renderGroups() {
 }
 
 let pendingGroupIcon = "";
+el("newGroupIcon").textContent = DEFAULT_GROUP_ICON;
 el("newGroupIcon").addEventListener("click", () => {
   openEmojiPicker(el("newGroupIcon"), {
     current: pendingGroupIcon,
@@ -165,7 +168,7 @@ el("newGroupIcon").addEventListener("click", () => {
     },
     onClear: () => {
       pendingGroupIcon = "";
-      el("newGroupIcon").textContent = "◇";
+      el("newGroupIcon").textContent = DEFAULT_GROUP_ICON;
     },
   });
 });
@@ -312,5 +315,13 @@ for (const id of ["filterType", "filterDuration", "filterUploaded", "sortBy", "h
   el(id).addEventListener("change", renderFeed);
 }
 el("searchQuery").addEventListener("input", renderFeed);
+
+// Groups can also be edited from the YouTube sidebar (icon picker) — reflect it.
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area === "sync" && changes.groups) {
+    groups = await store.getGroups();
+    renderGroups();
+  }
+});
 
 refreshAuthUI();
