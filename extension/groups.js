@@ -208,8 +208,11 @@ function buildChannelRow(row) {
   img.alt = "";
   wrap.appendChild(img);
 
-  const name = document.createElement("span");
+  const name = document.createElement("a");
   name.className = "channel-name";
+  name.href = `https://www.youtube.com/channel/${row.channelId}`;
+  name.target = "_blank";
+  name.rel = "noreferrer";
   name.textContent = row.title;
   wrap.appendChild(name);
 
