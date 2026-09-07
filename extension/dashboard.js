@@ -1,9 +1,7 @@
 import * as store from "./storage.js";
 
-// Pure helpers loaded by plain <script> tags in dashboard.html, ahead of this
-// module.
+// feedFilter.js (plain <script> in dashboard.html, ahead of this module).
 const { applyFilters } = window.YSTFeed;
-const { openEmojiPicker } = window.YSTEmoji;
 
 const DEFAULT_GROUP_ICON = "📁";
 
@@ -89,98 +87,43 @@ async function renderSyncStatus() {
   el("syncStatus").textContent = ts ? `Synced ${new Date(ts).toLocaleTimeString()}` : "";
 }
 
-// --- Groups -------------------------------------------------------------
+// --- Groups (read-only list; a feed filter — CRUD lives in groups.html) --
 
 function renderGroups() {
   const list = el("groupList");
-  list.innerHTML = "";
+  list.replaceChildren();
 
-  const allItem = document.createElement("li");
-  allItem.textContent = "All subscriptions";
-  allItem.className = activeGroupId === null ? "active" : "";
-  allItem.addEventListener("click", () => {
-    activeGroupId = null;
-    renderGroups();
-    renderFeed();
-  });
-  list.appendChild(allItem);
-
-  for (const [groupId, group] of Object.entries(groups)) {
+  const selectRow = (id, label, isActive) => {
     const item = document.createElement("li");
-    item.className = groupId === activeGroupId ? "active" : "";
-
-    const icon = document.createElement("button");
-    icon.type = "button";
-    icon.className = "group-icon";
-    icon.textContent = group.icon || DEFAULT_GROUP_ICON;
-    icon.title = "Change icon";
-    icon.addEventListener("click", (evt) => {
-      evt.stopPropagation();
-      openEmojiPicker(icon, {
-        current: group.icon,
-        onPick: async (char) => {
-          groups = await store.setGroupIcon(groupId, char);
-          renderGroups();
-        },
-        onClear: async () => {
-          groups = await store.setGroupIcon(groupId, "");
-          renderGroups();
-        },
-      });
-    });
-
-    const label = document.createElement("span");
-    label.textContent = `${group.name} (${group.channelIds.length})`;
-    label.addEventListener("click", () => {
-      activeGroupId = groupId;
+    item.className = isActive ? "active" : "";
+    item.textContent = label;
+    item.addEventListener("click", () => {
+      activeGroupId = id;
       renderGroups();
       renderFeed();
     });
+    return item;
+  };
 
-    const del = document.createElement("button");
-    del.textContent = "x";
-    del.addEventListener("click", async (evt) => {
-      evt.stopPropagation();
-      await store.deleteGroup(groupId);
-      groups = await store.getGroups();
-      if (activeGroupId === groupId) activeGroupId = null;
-      renderGroups();
-      renderFeed();
-    });
-
-    item.append(icon, label, del);
-    list.appendChild(item);
+  list.appendChild(selectRow(null, "All subscriptions", activeGroupId === null));
+  for (const [groupId, group] of Object.entries(groups)) {
+    const icon = group.icon || DEFAULT_GROUP_ICON;
+    list.appendChild(
+      selectRow(groupId, `${icon} ${group.name} (${group.channelIds.length})`, groupId === activeGroupId)
+    );
   }
 }
 
-let pendingGroupIcon = "";
-el("newGroupIcon").textContent = DEFAULT_GROUP_ICON;
-el("newGroupIcon").addEventListener("click", () => {
-  openEmojiPicker(el("newGroupIcon"), {
-    current: pendingGroupIcon,
-    onPick: (char) => {
-      pendingGroupIcon = char;
-      el("newGroupIcon").textContent = char;
-    },
-    onClear: () => {
-      pendingGroupIcon = "";
-      el("newGroupIcon").textContent = DEFAULT_GROUP_ICON;
-    },
-  });
-});
-
-el("newGroupForm").addEventListener("submit", async (evt) => {
-  evt.preventDefault();
-  const nameInput = el("newGroupName");
-  const name = nameInput.value.trim();
-  if (!name) return;
-  const groupId = `g_${Date.now()}`;
-  groups = await store.upsertGroup(groupId, name, []);
-  if (pendingGroupIcon) groups = await store.setGroupIcon(groupId, pendingGroupIcon);
-  nameInput.value = "";
-  pendingGroupIcon = "";
-  el("newGroupIcon").textContent = DEFAULT_GROUP_ICON;
-  renderGroups();
+// A group edited in groups.html / the YouTube sidebar should refresh this list.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && changes.groups) {
+    store.getGroups().then((g) => {
+      groups = g;
+      if (activeGroupId && !groups[activeGroupId]) activeGroupId = null;
+      renderGroups();
+      renderFeed();
+    });
+  }
 });
 
 // --- Feed -------------------------------------------------------------
@@ -257,13 +200,5 @@ for (const id of ["filterType", "filterDuration", "filterUploaded", "sortBy", "h
   el(id).addEventListener("change", renderFeed);
 }
 el("searchQuery").addEventListener("input", renderFeed);
-
-// Groups can also be edited from the YouTube sidebar (icon picker) — reflect it.
-chrome.storage.onChanged.addListener(async (changes, area) => {
-  if (area === "sync" && changes.groups) {
-    groups = await store.getGroups();
-    renderGroups();
-  }
-});
 
 refreshAuthUI();

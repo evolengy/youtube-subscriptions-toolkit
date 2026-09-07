@@ -282,7 +282,9 @@ Pure, `node --test`-covered logic modules (`window.YST*` globals, loaded by plai
 before the page's ES module; content-script ones also listed in the manifest `js` array):
 `feedFilter.js` (feed filter/sort, shared dashboard + overlay), `channelHealth.js`
 (activity classification, `channels.html`), `groupEditor.js` (`groups.html`),
-`emojiPicker.js` + `emojiData.js` (group-icon picker, dashboard + content script).
+`emojiPicker.js` + `emojiData.js` (group-icon picker, used by `groups.html` and the
+content script). All group create/rename/delete/icon/assignment lives in `groups.html`;
+the dashboard's group list is a read-only feed filter.
 
 YouTube-DOM realities worth knowing before touching the content script are in
 `extension/STATUS.md` → "Совместимость с DOM YouTube". `extension/STATUS.md` is otherwise the

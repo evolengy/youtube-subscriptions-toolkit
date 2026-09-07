@@ -39,36 +39,19 @@ button:hover { background: #3f3f3f; }
   padding: 12px;
 }
 
-#groupList { list-style: none; padding: 0; margin: 0 0 12px; }
+#groupList { list-style: none; padding: 0; margin: 0 0 8px; }
 #groupList li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  padding: 6px 8px;
   border-radius: 8px;
   cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-#groupList li > span { flex: 1; }
 #groupList li:hover, #groupList li.active { background: #272727; }
 
-/* Group icon button (dashboard list + new-group form). */
-.group-icon {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  font-size: 15px;
-  line-height: 1;
-  border-radius: 6px;
-  background: #272727;
-  border: 1px solid #3f3f3f;
-}
-.group-icon:hover { background: #3f3f3f; }
-#newGroupForm { display: flex; gap: 6px; align-items: center; }
-#newGroupName { flex: 1; }
-/* Emoji picker styling is shared with the content script — see emojiPicker.css */
-
-.groups-panel .hint { font-size: 12px; color: #aaa; margin: 10px 0 0; }
+.groups-panel .hint { font-size: 12px; color: #aaa; margin: 8px 0 0; }
 
 .feed-controls {
   display: flex;

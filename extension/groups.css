@@ -10,6 +10,7 @@ body {
   overflow: hidden;
 }
 [hidden] { display: none !important; }
+button { font-family: inherit; }
 
 .topbar {
   flex: none;
@@ -27,34 +28,96 @@ body {
   flex: 1;
   min-height: 0;
   display: flex;
-  flex-direction: column;
-  padding: 12px 20px 0;
-  max-width: 1000px;
-  width: 100%;
-  margin: 0 auto;
 }
 
-.toolbar {
+/* --- Rail --- */
+.rail {
   flex: none;
+  width: 240px;
+  border-right: 1px solid #262626;
+  padding: 10px 8px;
+  overflow-y: auto;
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
+  flex-direction: column;
+  gap: 2px;
 }
-.filters { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip {
-  background: #272727;
+.rail-sep { height: 1px; background: #262626; margin: 6px 4px; }
+
+.rail-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
   color: #f1f1f1;
-  border: 1px solid #3f3f3f;
-  border-radius: 14px;
-  padding: 4px 10px;
-  font-size: 12px;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
   cursor: pointer;
 }
-.chip:hover { background: #333; }
-.chip.active { background: #f1f1f1; color: #0f0f0f; border-color: #f1f1f1; }
+.rail-row:hover { background: #1f1f1f; }
+.rail-row.active { background: #272727; }
+.rail-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-count { flex: none; color: #aaa; font-size: 12px; }
+
+.rail-icon {
+  flex: none;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.rail-icon:hover { background: #3f3f3f; }
+.rail-act {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  visibility: hidden;
+}
+.rail-row.group:hover .rail-act { visibility: visible; }
+.rail-act:hover { background: #3f3f3f; color: #f1f1f1; }
+
+.rail-edit {
+  width: 100%;
+  background: #121212;
+  color: #f1f1f1;
+  border: 1px solid #3ea6ff;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+.rail-new {
+  margin-top: 4px;
+  text-align: left;
+  background: transparent;
+  border: 1px dashed #3f3f3f;
+  color: #aaa;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.rail-new:hover { color: #f1f1f1; border-color: #6f6f6f; }
+
+/* --- Channel pane --- */
+.pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 20px 0;
+}
+.toolbar { flex: none; margin-bottom: 10px; }
 #search {
   background: #272727;
   color: #f1f1f1;
@@ -62,15 +125,10 @@ body {
   border-radius: 8px;
   padding: 5px 10px;
   font-size: 13px;
-  min-width: 220px;
+  min-width: 240px;
 }
 
-.channel-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding-bottom: 20px;
-}
+.channel-list { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 20px; }
 #empty { color: #aaa; padding: 16px 2px; }
 
 .channel-row {
@@ -95,11 +153,7 @@ body {
   white-space: nowrap;
   font-size: 13px;
 }
-.group-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
+.group-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .group-chip {
   background: transparent;
   color: #aaa;
@@ -111,8 +165,4 @@ body {
   white-space: nowrap;
 }
 .group-chip:hover { border-color: #6f6f6f; color: #f1f1f1; }
-.group-chip.active {
-  background: #263a4f;
-  border-color: #3ea6ff;
-  color: #f1f1f1;
-}
+.group-chip.active { background: #263a4f; border-color: #3ea6ff; color: #f1f1f1; }
