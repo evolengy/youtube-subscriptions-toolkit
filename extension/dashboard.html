@@ -11,6 +11,7 @@
     <h1>Subscriptions Dashboard</h1>
     <div class="auth-area">
       <span id="syncStatus"></span>
+      <button id="editGroupsBtn" hidden>Edit groups</button>
       <button id="manageChannelsBtn" hidden>Manage channels</button>
       <button id="signInBtn">Sign in with Google</button>
       <button id="signOutBtn" hidden>Sign out</button>
@@ -27,9 +28,7 @@
         <input id="newGroupName" placeholder="New group name" required />
         <button type="submit">Add group</button>
       </form>
-
-      <h2>Assign channels</h2>
-      <div id="channelAssignList" class="channel-assign-list"></div>
+      <p class="hint">Assign channels to groups in <strong>Edit groups</strong>.</p>
     </aside>
 
     <section class="feed-panel">
@@ -73,7 +72,6 @@
   </main>
 
   <script src="feedFilter.js"></script>
-  <script src="channelHealth.js"></script>
   <script src="emojiData.js"></script>
   <script src="emojiPicker.js"></script>
   <script src="dashboard.js" type="module"></script>

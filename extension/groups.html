@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Group editor</title>
+  <link rel="stylesheet" href="groups.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Group editor</h1>
+    <span id="hint">Click a group chip on a channel to add or remove it.</span>
+  </header>
+
+  <main id="app" hidden>
+    <div class="toolbar">
+      <div id="filters" class="filters"></div>
+      <input id="search" type="search" placeholder="Search channel" />
+    </div>
+    <div id="list" class="channel-list"></div>
+    <p id="empty" hidden>No channels match.</p>
+  </main>
+
+  <p id="signedOut" hidden>Sign in from the dashboard first.</p>
+
+  <script src="groupEditor.js"></script>
+  <script src="groups.js" type="module"></script>
+</body>
+</html>

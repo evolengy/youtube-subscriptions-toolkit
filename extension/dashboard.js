@@ -1,9 +1,8 @@
 import * as store from "./storage.js";
 
 // Pure helpers loaded by plain <script> tags in dashboard.html, ahead of this
-// module: feed filtering (shared with the overlay) and channel-health.
+// module.
 const { applyFilters } = window.YSTFeed;
-const { classifyChannel } = window.YSTHealth;
 const { openEmojiPicker } = window.YSTEmoji;
 
 const DEFAULT_GROUP_ICON = "📁";
@@ -39,13 +38,14 @@ async function refreshAuthUI() {
   el("signOutBtn").hidden = !signedIn;
   el("refreshBtn").hidden = !signedIn;
   el("manageChannelsBtn").hidden = !signedIn;
+  el("editGroupsBtn").hidden = !signedIn;
   el("app").hidden = !signedIn;
   if (signedIn) await loadAndRender();
 }
 
-el("manageChannelsBtn").addEventListener("click", () => {
-  chrome.tabs.create({ url: chrome.runtime.getURL("channels.html") });
-});
+const openPage = (file) => () => chrome.tabs.create({ url: chrome.runtime.getURL(file) });
+el("manageChannelsBtn").addEventListener("click", openPage("channels.html"));
+el("editGroupsBtn").addEventListener("click", openPage("groups.html"));
 
 el("signInBtn").addEventListener("click", async () => {
   el("syncStatus").textContent = "Signing in...";
@@ -81,7 +81,6 @@ async function loadAndRender() {
   await loadState();
   renderSyncStatus();
   renderGroups();
-  renderChannelAssignList();
   renderFeed();
 }
 
@@ -102,7 +101,6 @@ function renderGroups() {
   allItem.addEventListener("click", () => {
     activeGroupId = null;
     renderGroups();
-    renderChannelAssignList();
     renderFeed();
   });
   list.appendChild(allItem);
@@ -136,7 +134,6 @@ function renderGroups() {
     label.addEventListener("click", () => {
       activeGroupId = groupId;
       renderGroups();
-      renderChannelAssignList();
       renderFeed();
     });
 
@@ -148,7 +145,6 @@ function renderGroups() {
       groups = await store.getGroups();
       if (activeGroupId === groupId) activeGroupId = null;
       renderGroups();
-      renderChannelAssignList();
       renderFeed();
     });
 
@@ -183,63 +179,9 @@ el("newGroupForm").addEventListener("submit", async (evt) => {
   if (pendingGroupIcon) groups = await store.setGroupIcon(groupId, pendingGroupIcon);
   nameInput.value = "";
   pendingGroupIcon = "";
-  el("newGroupIcon").textContent = "◇";
+  el("newGroupIcon").textContent = DEFAULT_GROUP_ICON;
   renderGroups();
 });
-
-function renderChannelAssignList() {
-  const container = el("channelAssignList");
-  container.innerHTML = "";
-  if (!activeGroupId) {
-    container.textContent = "Select a group to assign channels to it.";
-    return;
-  }
-  const group = groups[activeGroupId];
-  for (const [channelId, sub] of Object.entries(subscriptions)) {
-    if (sub.dead) continue;
-    const label = document.createElement("label");
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = group.channelIds.includes(channelId);
-    checkbox.addEventListener("change", async () => {
-      const next = checkbox.checked
-        ? [...group.channelIds, channelId]
-        : group.channelIds.filter((id) => id !== channelId);
-      groups = await store.upsertGroup(activeGroupId, group.name, next);
-      renderGroups();
-      renderFeed();
-    });
-    const img = document.createElement("img");
-    img.src = sub.thumbnail ?? "";
-    label.append(checkbox, img, buildStatusDot(channelId), document.createTextNode(sub.title));
-    container.appendChild(label);
-  }
-}
-
-// --- Channel health -------------------------------------------------------------
-
-function getChannelHealth(channelId) {
-  const sub = subscriptions[channelId];
-  return classifyChannel({ dead: sub?.dead, videos: videosByChannel[channelId] });
-}
-
-const STATUS_LABEL = {
-  dead: "Dead",
-  active: "Active",
-  quiet: "Quiet",
-  dormant: "Dormant",
-  unknown: "Unknown",
-};
-
-// A small coloured dot with the status name as its tooltip.
-function buildStatusDot(channelId) {
-  const { status } = getChannelHealth(channelId);
-  const dot = document.createElement("span");
-  dot.className = "status-dot";
-  dot.dataset.status = status;
-  dot.title = STATUS_LABEL[status];
-  return dot;
-}
 
 // --- Feed -------------------------------------------------------------
 

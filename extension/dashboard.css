@@ -68,9 +68,7 @@ button:hover { background: #3f3f3f; }
 #newGroupName { flex: 1; }
 /* Emoji picker styling is shared with the content script — see emojiPicker.css */
 
-.channel-assign-list { max-height: 240px; overflow-y: auto; }
-.channel-assign-list label { display: flex; gap: 8px; align-items: center; padding: 4px 0; font-size: 13px; }
-.channel-assign-list img { width: 20px; height: 20px; border-radius: 50%; }
+.groups-panel .hint { font-size: 12px; color: #aaa; margin: 10px 0 0; }
 
 .feed-controls {
   display: flex;
@@ -97,12 +95,3 @@ button:hover { background: #3f3f3f; }
 .video-card .info { padding: 8px; font-size: 13px; }
 .video-card .meta { color: #aaa; font-size: 12px; margin-top: 4px; }
 .video-card button { margin-top: 6px; font-size: 12px; padding: 3px 10px; }
-
-/* Status dot next to each channel in the assign list — colours keyed on
-   data-status. The full channel-health view is channels.html. */
-.status-dot { --s: #aaa; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--s); }
-.status-dot[data-status="active"] { --s: #2ba640; }
-.status-dot[data-status="quiet"] { --s: #e0a30d; }
-.status-dot[data-status="dormant"] { --s: #909090; }
-.status-dot[data-status="dead"] { --s: #d93636; }
-.status-dot[data-status="unknown"] { --s: #5a5a5a; }
