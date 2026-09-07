@@ -1,5 +1,10 @@
 import * as store from "./storage.js";
 
+// Pure helpers loaded by plain <script> tags in dashboard.html, ahead of this
+// module: feed filtering (shared with the overlay) and channel-health.
+const { applyFilters } = window.YSTFeed;
+const { classifyChannel, relativeTime, STATUS_ORDER } = window.YSTHealth;
+
 let subscriptions = {};
 let videosByChannel = {};
 let groups = {};
@@ -70,7 +75,7 @@ async function loadAndRender() {
   renderGroups();
   renderChannelAssignList();
   renderFeed();
-  renderDeadChannels();
+  renderChannels();
 }
 
 async function renderSyncStatus() {
@@ -160,17 +165,37 @@ function renderChannelAssignList() {
     });
     const img = document.createElement("img");
     img.src = sub.thumbnail ?? "";
-    label.append(checkbox, img, document.createTextNode(sub.title));
+    label.append(checkbox, img, buildStatusDot(channelId), document.createTextNode(sub.title));
     container.appendChild(label);
   }
 }
 
-// --- Feed -------------------------------------------------------------
+// --- Channel health -------------------------------------------------------------
 
-// Filtering / sorting / video-type classification lives in feedFilter.js
-// (window.YSTFeed), shared with the in-page overlay. Loaded by a plain <script>
-// tag in dashboard.html before this module.
-const { applyFilters } = window.YSTFeed;
+function getChannelHealth(channelId) {
+  const sub = subscriptions[channelId];
+  return classifyChannel({ dead: sub?.dead, videos: videosByChannel[channelId] });
+}
+
+const STATUS_LABEL = {
+  dead: "Dead",
+  active: "Active",
+  quiet: "Quiet",
+  dormant: "Dormant",
+  unknown: "Unknown",
+};
+
+// A small coloured dot with the status name as its tooltip.
+function buildStatusDot(channelId) {
+  const { status } = getChannelHealth(channelId);
+  const dot = document.createElement("span");
+  dot.className = "status-dot";
+  dot.dataset.status = status;
+  dot.title = STATUS_LABEL[status];
+  return dot;
+}
+
+// --- Feed -------------------------------------------------------------
 
 function getVisibleChannelIds() {
   if (!activeGroupId) return Object.keys(subscriptions);
@@ -247,26 +272,59 @@ el("searchQuery").addEventListener("input", renderFeed);
 
 // --- Dead channels -------------------------------------------------------------
 
-function renderDeadChannels() {
-  const container = el("deadChannels");
+function renderChannels() {
+  const container = el("channelHealth");
   container.innerHTML = "";
-  const dead = Object.entries(subscriptions).filter(([, sub]) => sub.dead);
-  if (dead.length === 0) {
-    container.textContent = "No dead channels detected.";
+
+  const entries = Object.entries(subscriptions);
+  if (entries.length === 0) {
+    container.textContent = "No subscriptions cached yet.";
     return;
   }
-  for (const [channelId, sub] of dead) {
-    const row = document.createElement("div");
-    row.className = "dead-row";
-    row.append(document.createTextNode(sub.title ?? channelId));
-    const btn = document.createElement("button");
-    btn.textContent = "Unsubscribe";
-    btn.addEventListener("click", async () => {
-      await send({ type: "UNSUBSCRIBE", subscriptionId: sub.subscriptionId, channelId });
-      subscriptions = await store.getSubscriptionsCache();
-      renderDeadChannels();
+
+  const rows = entries
+    .map(([channelId, sub]) => ({ channelId, sub, health: getChannelHealth(channelId) }))
+    .sort((a, b) => {
+      const order = STATUS_ORDER[a.health.status] - STATUS_ORDER[b.health.status];
+      return order !== 0 ? order : (a.sub.title ?? "").localeCompare(b.sub.title ?? "");
     });
-    row.appendChild(btn);
+
+  for (const { channelId, sub, health } of rows) {
+    const row = document.createElement("div");
+    row.className = "channel-row";
+
+    const badge = document.createElement("span");
+    badge.className = "status-badge";
+    badge.dataset.status = health.status;
+    badge.textContent = STATUS_LABEL[health.status];
+
+    const title = document.createElement("span");
+    title.className = "channel-title";
+    title.textContent = sub.title ?? channelId;
+
+    const detail = document.createElement("span");
+    detail.className = "channel-detail";
+    const ago = relativeTime(health.lastUploadAt);
+    detail.textContent =
+      health.status === "dead"
+        ? "unavailable"
+        : ago
+          ? `last upload ${ago}`
+          : "no cached uploads";
+
+    row.append(badge, title, detail);
+
+    if (sub.dead) {
+      const btn = document.createElement("button");
+      btn.textContent = "Unsubscribe";
+      btn.addEventListener("click", async () => {
+        await send({ type: "UNSUBSCRIBE", subscriptionId: sub.subscriptionId, channelId });
+        subscriptions = await store.getSubscriptionsCache();
+        renderChannels();
+      });
+      row.appendChild(btn);
+    }
+
     container.appendChild(row);
   }
 }

@@ -79,4 +79,45 @@ button:hover { background: #3f3f3f; }
 .video-card .meta { color: #aaa; font-size: 12px; margin-top: 4px; }
 .video-card button { margin-top: 6px; font-size: 12px; padding: 3px 10px; }
 
-#deadChannels .dead-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; }
+/* Channel health: badge / dot colours keyed on data-status. */
+.status-badge,
+.status-dot { --s: #aaa; }
+[data-status="active"] { --s: #2ba640; }
+[data-status="quiet"] { --s: #e0a30d; }
+[data-status="dormant"] { --s: #909090; }
+[data-status="dead"] { --s: #d93636; }
+[data-status="unknown"] { --s: #5a5a5a; }
+
+.status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--s);
+}
+.status-badge {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--s);
+  background: color-mix(in srgb, var(--s) 18%, transparent);
+}
+
+#channelHealth { display: flex; flex-direction: column; gap: 2px; }
+.channel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.channel-row .channel-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.channel-row .channel-detail { color: #aaa; font-size: 12px; flex: none; }
+.channel-row button { flex: none; font-size: 12px; padding: 3px 10px; }
