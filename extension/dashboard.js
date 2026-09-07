@@ -167,27 +167,10 @@ function renderChannelAssignList() {
 
 // --- Feed -------------------------------------------------------------
 
-function parseIsoDuration(iso) {
-  const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(iso ?? "");
-  if (!match) return 0;
-  const [, h, m, s] = match;
-  return (Number(h) || 0) * 3600 + (Number(m) || 0) * 60 + (Number(s) || 0);
-}
-
-const SHORT_MAX_SECONDS = 60;
-
-// Live/upcoming status is authoritative and checked first — a livestream can
-// report a near-zero or stale duration while it's airing, which would
-// otherwise get misread as a Short. Once a stream has ended
-// (liveBroadcastContent === "none"), hasLiveStreamingDetails is still true
-// for it forever, so it's not used as a live signal on its own — it just
-// falls through to the duration check like any past upload.
-function classifyVideoType(video, durationSeconds) {
-  if (video.liveBroadcastContent === "live" || video.liveBroadcastContent === "upcoming") {
-    return "live";
-  }
-  return durationSeconds <= SHORT_MAX_SECONDS ? "short" : "video";
-}
+// Filtering / sorting / video-type classification lives in feedFilter.js
+// (window.YSTFeed), shared with the in-page overlay. Loaded by a plain <script>
+// tag in dashboard.html before this module.
+const { applyFilters } = window.YSTFeed;
 
 function getVisibleChannelIds() {
   if (!activeGroupId) return Object.keys(subscriptions);
@@ -209,22 +192,15 @@ function renderFeed() {
   const feed = el("feed");
   feed.innerHTML = "";
 
-  const typeFilter = el("filterType").value;
-  const sortBy = el("sortBy").value;
-  const hideWatched = el("hideWatched").checked;
-
-  let videos = collectVideos().map((v) => {
-    const durationSeconds = parseIsoDuration(v.duration);
-    return { ...v, durationSeconds, type: classifyVideoType(v, durationSeconds) };
-  });
-
-  if (typeFilter !== "all") videos = videos.filter((v) => v.type === typeFilter);
-  if (hideWatched) videos = videos.filter((v) => !watchedIds.has(v.videoId));
-
-  videos.sort((a, b) => {
-    if (sortBy === "duration") return b.durationSeconds - a.durationSeconds;
-    if (sortBy === "views") return b.viewCount - a.viewCount;
-    return new Date(b.publishedAt) - new Date(a.publishedAt);
+  const videos = applyFilters(collectVideos(), {
+    type: el("filterType").value,
+    sortBy: el("sortBy").value,
+    hideWatched: el("hideWatched").checked,
+    watchedIds,
+    duration: el("filterDuration").value,
+    uploadedWithin: el("filterUploaded").value,
+    query: el("searchQuery").value,
+    channelTitleOf: (channelId) => subscriptions[channelId]?.title ?? "",
   });
 
   for (const video of videos) {
@@ -264,9 +240,10 @@ function renderVideoCard(video) {
   return card;
 }
 
-for (const id of ["filterType", "sortBy", "hideWatched"]) {
+for (const id of ["filterType", "filterDuration", "filterUploaded", "sortBy", "hideWatched"]) {
   el(id).addEventListener("change", renderFeed);
 }
+el("searchQuery").addEventListener("input", renderFeed);
 
 // --- Dead channels -------------------------------------------------------------
 

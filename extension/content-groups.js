@@ -6,14 +6,16 @@
 // Group/channel management stays in dashboard.html — the on-site surface is
 // read/switch only, reusing masthead search and navigation underneath.
 //
-// Plain script (not an ES module) — content scripts can't use import/export
-// against a separate module file without extra manifest wiring, so the
-// small bits of logic shared with dashboard.js (duration parsing, type
-// classification) are duplicated here rather than imported.
+// Plain script (not an ES module) — content scripts can't import an ES module
+// without extra wiring. Feed filtering/sorting/classification is shared with
+// the dashboard via feedFilter.js (window.YSTFeed), listed before this file in
+// the manifest so the global is ready.
 
 const MAX_WATCHED_IDS = 2000;
 const ALL_KEY = "__all__";
 let activeGroupKey = null;
+
+const { applyFilters } = window.YSTFeed;
 
 // Content-script failures are otherwise silent — surface them with a tag.
 const warn = (...a) => console.warn("[YST]", ...a);
@@ -32,22 +34,6 @@ async function markWatched(videoId) {
   ids.add(videoId);
   const trimmed = Array.from(ids).slice(-MAX_WATCHED_IDS);
   await chrome.storage.sync.set({ watchedVideoIds: trimmed });
-}
-
-function parseIsoDuration(iso) {
-  const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(iso ?? "");
-  if (!match) return 0;
-  const [, h, m, s] = match;
-  return (Number(h) || 0) * 3600 + (Number(m) || 0) * 60 + (Number(s) || 0);
-}
-
-const SHORT_MAX_SECONDS = 60;
-
-function classifyVideoType(video, durationSeconds) {
-  if (video.liveBroadcastContent === "live" || video.liveBroadcastContent === "upcoming") {
-    return "live";
-  }
-  return durationSeconds <= SHORT_MAX_SECONDS ? "short" : "video";
 }
 
 // --- Sidebar -------------------------------------------------------------
@@ -227,12 +213,13 @@ async function getVisibleVideos(groupKey) {
 
   const videos = [];
   for (const channelId of channelIds) {
-    for (const video of (videosCache || {})[channelId] ?? []) {
-      const durationSeconds = parseIsoDuration(video.duration);
-      videos.push({ ...video, durationSeconds, type: classifyVideoType(video, durationSeconds) });
-    }
+    for (const video of (videosCache || {})[channelId] ?? []) videos.push(video);
   }
-  return { videos, watchedIds: new Set(watchedVideoIds || []) };
+  return {
+    videos,
+    watchedIds: new Set(watchedVideoIds || []),
+    channelTitleOf: (id) => (subscriptionsCache || {})[id]?.title ?? "",
+  };
 }
 
 async function renderOverlay() {
@@ -261,20 +248,36 @@ async function renderOverlay() {
     ["short", "Short"],
     ["live", "Live"],
   ]);
-  header.appendChild(typeSelect);
-
+  const durationSelect = buildSelect([
+    ["any", "Any length"],
+    ["under4", "< 4 min"],
+    ["4to20", "4–20 min"],
+    ["over20", "> 20 min"],
+  ]);
+  const uploadedSelect = buildSelect([
+    ["any", "Any time"],
+    ["today", "Today"],
+    ["week", "This week"],
+    ["month", "This month"],
+  ]);
   const sortSelect = buildSelect([
     ["date", "Newest"],
     ["duration", "Duration"],
     ["views", "Most viewed"],
   ]);
-  header.appendChild(sortSelect);
+  header.append(typeSelect, durationSelect, uploadedSelect, sortSelect);
 
   const hideWatchedLabel = document.createElement("label");
   const hideWatchedCheckbox = document.createElement("input");
   hideWatchedCheckbox.type = "checkbox";
   hideWatchedLabel.append(hideWatchedCheckbox, document.createTextNode(" Hide watched"));
   header.appendChild(hideWatchedLabel);
+
+  const searchInput = document.createElement("input");
+  searchInput.type = "search";
+  searchInput.className = "yst-search";
+  searchInput.placeholder = "Search title or channel";
+  header.appendChild(searchInput);
 
   const closeBtn = document.createElement("button");
   closeBtn.className = "yst-close-btn";
@@ -288,15 +291,16 @@ async function renderOverlay() {
   overlay.append(header, feed);
 
   const rerenderFeed = async () => {
-    const { videos, watchedIds } = await getVisibleVideos(activeGroupKey);
-    let filtered = videos;
-    if (typeSelect.value !== "all") filtered = filtered.filter((v) => v.type === typeSelect.value);
-    if (hideWatchedCheckbox.checked) filtered = filtered.filter((v) => !watchedIds.has(v.videoId));
-
-    filtered.sort((a, b) => {
-      if (sortSelect.value === "duration") return b.durationSeconds - a.durationSeconds;
-      if (sortSelect.value === "views") return b.viewCount - a.viewCount;
-      return new Date(b.publishedAt) - new Date(a.publishedAt);
+    const { videos, watchedIds, channelTitleOf } = await getVisibleVideos(activeGroupKey);
+    const filtered = applyFilters(videos, {
+      type: typeSelect.value,
+      sortBy: sortSelect.value,
+      hideWatched: hideWatchedCheckbox.checked,
+      watchedIds,
+      duration: durationSelect.value,
+      uploadedWithin: uploadedSelect.value,
+      query: searchInput.value,
+      channelTitleOf,
     });
 
     feed.replaceChildren();
@@ -305,9 +309,10 @@ async function renderOverlay() {
     }
   };
 
-  typeSelect.addEventListener("change", rerenderFeed);
-  sortSelect.addEventListener("change", rerenderFeed);
-  hideWatchedCheckbox.addEventListener("change", rerenderFeed);
+  for (const control of [typeSelect, durationSelect, uploadedSelect, sortSelect, hideWatchedCheckbox]) {
+    control.addEventListener("change", rerenderFeed);
+  }
+  searchInput.addEventListener("input", rerenderFeed);
   await rerenderFeed();
 }
 

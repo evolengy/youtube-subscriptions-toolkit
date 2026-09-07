@@ -53,7 +53,24 @@ button:hover { background: #3f3f3f; }
 .channel-assign-list label { display: flex; gap: 8px; align-items: center; padding: 4px 0; font-size: 13px; }
 .channel-assign-list img { width: 20px; height: 20px; border-radius: 50%; }
 
-.feed-controls { display: flex; gap: 16px; margin-bottom: 12px; font-size: 13px; }
+.feed-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.feed-controls select,
+.feed-controls input[type="search"] {
+  background: #272727;
+  color: #f1f1f1;
+  border: 1px solid #3f3f3f;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.feed-controls input[type="search"] { min-width: 200px; }
 .feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .video-card { background: #181818; border-radius: 8px; overflow: hidden; }
 .video-card.watched { opacity: 0.45; }

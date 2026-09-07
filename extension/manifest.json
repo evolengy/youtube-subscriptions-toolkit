@@ -24,7 +24,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/*"],
-      "js": ["content-groups.js"],
+      "js": ["feedFilter.js", "content-groups.js"],
       "css": ["content-groups.css"],
       "run_at": "document_idle"
     }

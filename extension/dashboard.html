@@ -39,6 +39,22 @@
             <option value="live">Live</option>
           </select>
         </label>
+        <label>Length:
+          <select id="filterDuration">
+            <option value="any">Any</option>
+            <option value="under4">&lt; 4 min</option>
+            <option value="4to20">4&ndash;20 min</option>
+            <option value="over20">&gt; 20 min</option>
+          </select>
+        </label>
+        <label>Uploaded:
+          <select id="filterUploaded">
+            <option value="any">Any time</option>
+            <option value="today">Today</option>
+            <option value="week">This week</option>
+            <option value="month">This month</option>
+          </select>
+        </label>
         <label>Sort:
           <select id="sortBy">
             <option value="date">Newest</option>
@@ -47,6 +63,7 @@
           </select>
         </label>
         <label><input type="checkbox" id="hideWatched" /> Hide watched</label>
+        <input id="searchQuery" type="search" placeholder="Search title or channel" />
       </div>
       <div id="feed" class="feed"></div>
     </section>
@@ -57,6 +74,7 @@
     </section>
   </main>
 
+  <script src="feedFilter.js"></script>
   <script src="dashboard.js" type="module"></script>
 </body>
 </html>

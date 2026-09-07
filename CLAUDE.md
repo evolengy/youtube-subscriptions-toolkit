@@ -270,7 +270,11 @@ attached property alone doesn't hold against `IScrollInfo`). Each consumer suppl
 `background.js` (MV3 service worker) owns a `chrome.alarms` refresh loop (45 min) and a
 message router; `youtubeApi.js` wraps the Data API using `chrome.identity.getAuthToken` (one
 `https://www.googleapis.com/auth/youtube` token for everything, no refresh mechanism);
-`storage.js` wraps `chrome.storage`. `dashboard.html/js` is the management UI;
-`content-groups.js` injects a "My groups" section into YouTube's own sidebar and
-`content-location.js` adds a country badge on watch pages — those two content scripts are the
-fragile parts the desktop client exists to avoid.
+`storage.js` wraps `chrome.storage`. `dashboard.html/js` is the management UI. The single
+content script `content-groups.js` (matched to all of `youtube.com/*`, so it survives SPA
+navigation) injects a "My groups" section + grouped-feed overlay into YouTube's sidebar **and**
+the channel-country badge on watch pages — it is the fragile part the desktop client exists to
+avoid. Feed filtering/sorting is a pure module `feedFilter.js` (`window.YSTFeed`) shared by the
+dashboard and the overlay, with `feedFilter.test.js` (`node --test`). YouTube-DOM realities
+worth knowing before touching the content script are in `extension/STATUS.md` → "Совместимость
+с DOM YouTube". `extension/STATUS.md` is otherwise the feature-status source.

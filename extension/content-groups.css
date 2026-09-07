@@ -129,9 +129,10 @@ html[dark] {
   cursor: pointer;
 }
 
-/* Pill controls — shared shape for the Type/Sort selects, Close, and the
-   per-card "Mark watched" button, matching YouTube's chip buttons. */
+/* Pill controls — shared shape for the filter selects, search box, Close, and
+   the per-card "Mark watched" button, matching YouTube's chip buttons. */
 .yst-overlay-header select,
+.yst-overlay-header .yst-search,
 .yst-close-btn,
 .yst-video-card button {
   height: 36px;
@@ -150,6 +151,14 @@ html[dark] {
 }
 .yst-overlay-header select {
   padding-right: 12px;
+}
+.yst-overlay-header .yst-search {
+  min-width: 200px;
+  font-weight: 400;
+  cursor: text;
+}
+.yst-overlay-header .yst-search::placeholder {
+  color: var(--yst-text-secondary);
 }
 /* The popped-open option list is OS-drawn (usually on a light menu), so pin
    it to a fixed readable pair rather than the theme token. */
