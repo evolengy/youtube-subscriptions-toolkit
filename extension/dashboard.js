@@ -3,7 +3,7 @@ import * as store from "./storage.js";
 // Pure helpers loaded by plain <script> tags in dashboard.html, ahead of this
 // module: feed filtering (shared with the overlay) and channel-health.
 const { applyFilters } = window.YSTFeed;
-const { classifyChannel, relativeTime, STATUS_ORDER } = window.YSTHealth;
+const { classifyChannel } = window.YSTHealth;
 
 let subscriptions = {};
 let videosByChannel = {};
@@ -35,9 +35,14 @@ async function refreshAuthUI() {
   el("signInBtn").hidden = signedIn;
   el("signOutBtn").hidden = !signedIn;
   el("refreshBtn").hidden = !signedIn;
+  el("manageChannelsBtn").hidden = !signedIn;
   el("app").hidden = !signedIn;
   if (signedIn) await loadAndRender();
 }
+
+el("manageChannelsBtn").addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("channels.html") });
+});
 
 el("signInBtn").addEventListener("click", async () => {
   el("syncStatus").textContent = "Signing in...";
@@ -75,7 +80,6 @@ async function loadAndRender() {
   renderGroups();
   renderChannelAssignList();
   renderFeed();
-  renderChannels();
 }
 
 async function renderSyncStatus() {
@@ -269,64 +273,5 @@ for (const id of ["filterType", "filterDuration", "filterUploaded", "sortBy", "h
   el(id).addEventListener("change", renderFeed);
 }
 el("searchQuery").addEventListener("input", renderFeed);
-
-// --- Dead channels -------------------------------------------------------------
-
-function renderChannels() {
-  const container = el("channelHealth");
-  container.innerHTML = "";
-
-  const entries = Object.entries(subscriptions);
-  if (entries.length === 0) {
-    container.textContent = "No subscriptions cached yet.";
-    return;
-  }
-
-  const rows = entries
-    .map(([channelId, sub]) => ({ channelId, sub, health: getChannelHealth(channelId) }))
-    .sort((a, b) => {
-      const order = STATUS_ORDER[a.health.status] - STATUS_ORDER[b.health.status];
-      return order !== 0 ? order : (a.sub.title ?? "").localeCompare(b.sub.title ?? "");
-    });
-
-  for (const { channelId, sub, health } of rows) {
-    const row = document.createElement("div");
-    row.className = "channel-row";
-
-    const badge = document.createElement("span");
-    badge.className = "status-badge";
-    badge.dataset.status = health.status;
-    badge.textContent = STATUS_LABEL[health.status];
-
-    const title = document.createElement("span");
-    title.className = "channel-title";
-    title.textContent = sub.title ?? channelId;
-
-    const detail = document.createElement("span");
-    detail.className = "channel-detail";
-    const ago = relativeTime(health.lastUploadAt);
-    detail.textContent =
-      health.status === "dead"
-        ? "unavailable"
-        : ago
-          ? `last upload ${ago}`
-          : "no cached uploads";
-
-    row.append(badge, title, detail);
-
-    if (sub.dead) {
-      const btn = document.createElement("button");
-      btn.textContent = "Unsubscribe";
-      btn.addEventListener("click", async () => {
-        await send({ type: "UNSUBSCRIBE", subscriptionId: sub.subscriptionId, channelId });
-        subscriptions = await store.getSubscriptionsCache();
-        renderChannels();
-      });
-      row.appendChild(btn);
-    }
-
-    container.appendChild(row);
-  }
-}
 
 refreshAuthUI();

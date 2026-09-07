@@ -59,8 +59,77 @@
 
   // Sort key for the channel list — lower sorts first (needs more attention).
   const STATUS_ORDER = { dead: 0, dormant: 1, quiet: 2, active: 3, unknown: 4 };
+  const STATUSES = ["active", "quiet", "dormant", "dead", "unknown"];
 
-  const api = { classifyChannel, relativeTime, lastUploadAt, STATUS_ORDER };
+  function classifyOne(subscriptions, videosCache, channelId, now) {
+    const sub = (subscriptions || {})[channelId] || {};
+    const health = classifyChannel({ dead: sub.dead, videos: (videosCache || {})[channelId] }, now);
+    return {
+      channelId,
+      title: sub.title ?? channelId,
+      thumbnail: sub.thumbnail ?? null,
+      subscriptionId: sub.subscriptionId ?? null,
+      dead: Boolean(sub.dead),
+      status: health.status,
+      lastUploadAt: health.lastUploadAt,
+    };
+  }
+
+  // { all: N, active: N, ... } over every subscription, ignoring filters.
+  function countByStatus(subscriptions, videosCache, now = Date.now()) {
+    const counts = { all: 0, active: 0, quiet: 0, dormant: 0, dead: 0, unknown: 0 };
+    for (const channelId of Object.keys(subscriptions || {})) {
+      const { status } = classifyOne(subscriptions, videosCache, channelId, now);
+      counts.all += 1;
+      counts[status] += 1;
+    }
+    return counts;
+  }
+
+  // Rows for the channel-management table: one per subscription, filtered by
+  // status + title search, sorted by the given column/direction.
+  //   opts.sort:         { column: "title" | "status" | "lastUpload", dir: "asc" | "desc" }
+  //   opts.statusFilter: "all" | one of STATUSES
+  //   opts.query:        title search text
+  function buildChannelRows(subscriptions, videosCache, opts = {}, now = Date.now()) {
+    const { sort = { column: "status", dir: "asc" }, statusFilter = "all", query = "" } = opts;
+    const needle = query.trim().toLowerCase();
+
+    let rows = Object.keys(subscriptions || {}).map((id) =>
+      classifyOne(subscriptions, videosCache, id, now)
+    );
+
+    if (statusFilter !== "all") rows = rows.filter((r) => r.status === statusFilter);
+    if (needle) rows = rows.filter((r) => r.title.toLowerCase().includes(needle));
+
+    const dir = sort.dir === "desc" ? -1 : 1;
+    rows.sort((a, b) => {
+      let cmp;
+      if (sort.column === "title") {
+        cmp = a.title.localeCompare(b.title);
+      } else if (sort.column === "lastUpload") {
+        // Channels with no known upload sort as oldest.
+        const ta = a.lastUploadAt ? Date.parse(a.lastUploadAt) : -Infinity;
+        const tb = b.lastUploadAt ? Date.parse(b.lastUploadAt) : -Infinity;
+        cmp = ta - tb;
+      } else {
+        cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.title.localeCompare(b.title);
+      }
+      return cmp * dir;
+    });
+
+    return rows;
+  }
+
+  const api = {
+    classifyChannel,
+    relativeTime,
+    lastUploadAt,
+    countByStatus,
+    buildChannelRows,
+    STATUS_ORDER,
+    STATUSES,
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = api; // node test
   root.YSTHealth = api;
 })(typeof window !== "undefined" ? window : globalThis);

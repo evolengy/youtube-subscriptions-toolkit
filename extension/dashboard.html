@@ -10,6 +10,7 @@
     <h1>Subscriptions Dashboard</h1>
     <div class="auth-area">
       <span id="syncStatus"></span>
+      <button id="manageChannelsBtn" hidden>Manage channels</button>
       <button id="signInBtn">Sign in with Google</button>
       <button id="signOutBtn" hidden>Sign out</button>
       <button id="refreshBtn" hidden>Refresh now</button>
@@ -66,11 +67,6 @@
         <input id="searchQuery" type="search" placeholder="Search title or channel" />
       </div>
       <div id="feed" class="feed"></div>
-    </section>
-
-    <section class="channels-panel">
-      <h2>Channel management</h2>
-      <div id="channelHealth"></div>
     </section>
   </main>
 

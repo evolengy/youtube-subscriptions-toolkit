@@ -27,13 +27,13 @@ button:hover { background: #3f3f3f; }
 
 #app {
   display: grid;
-  grid-template-columns: 260px 1fr 280px;
+  grid-template-columns: 260px 1fr;
   gap: 16px;
   padding: 16px 20px;
   align-items: start;
 }
 
-.groups-panel, .channels-panel {
+.groups-panel {
   background: #181818;
   border-radius: 12px;
   padding: 12px;
@@ -79,45 +79,11 @@ button:hover { background: #3f3f3f; }
 .video-card .meta { color: #aaa; font-size: 12px; margin-top: 4px; }
 .video-card button { margin-top: 6px; font-size: 12px; padding: 3px 10px; }
 
-/* Channel health: badge / dot colours keyed on data-status. */
-.status-badge,
-.status-dot { --s: #aaa; }
-[data-status="active"] { --s: #2ba640; }
-[data-status="quiet"] { --s: #e0a30d; }
-[data-status="dormant"] { --s: #909090; }
-[data-status="dead"] { --s: #d93636; }
-[data-status="unknown"] { --s: #5a5a5a; }
-
-.status-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--s);
-}
-.status-badge {
-  flex: none;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: var(--s);
-  background: color-mix(in srgb, var(--s) 18%, transparent);
-}
-
-#channelHealth { display: flex; flex-direction: column; gap: 2px; }
-.channel-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 0;
-  font-size: 13px;
-}
-.channel-row .channel-title {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.channel-row .channel-detail { color: #aaa; font-size: 12px; flex: none; }
-.channel-row button { flex: none; font-size: 12px; padding: 3px 10px; }
+/* Status dot next to each channel in the assign list — colours keyed on
+   data-status. The full channel-health view is channels.html. */
+.status-dot { --s: #aaa; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--s); }
+.status-dot[data-status="active"] { --s: #2ba640; }
+.status-dot[data-status="quiet"] { --s: #e0a30d; }
+.status-dot[data-status="dormant"] { --s: #909090; }
+.status-dot[data-status="dead"] { --s: #d93636; }
+.status-dot[data-status="unknown"] { --s: #5a5a5a; }

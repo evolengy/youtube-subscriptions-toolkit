@@ -1,7 +1,13 @@
 // Run: node --test channelHealth.test.js
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { classifyChannel, relativeTime, lastUploadAt } = require("./channelHealth.js");
+const {
+  classifyChannel,
+  relativeTime,
+  lastUploadAt,
+  countByStatus,
+  buildChannelRows,
+} = require("./channelHealth.js");
 
 const NOW = Date.parse("2026-09-07T12:00:00Z");
 const daysAgo = (n) => new Date(NOW - n * 24 * 60 * 60 * 1000).toISOString();
@@ -54,4 +60,65 @@ test("relativeTime: null / bad input -> null", () => {
   assert.equal(relativeTime(null, NOW), null);
   assert.equal(relativeTime("", NOW), null);
   assert.equal(relativeTime("nonsense", NOW), null);
+});
+
+// --- buildChannelRows / countByStatus ---
+
+const SUBS = {
+  a: { title: "Zeta", dead: false },
+  b: { title: "Alpha", dead: false },
+  c: { title: "Gone", dead: true, subscriptionId: "s-c" },
+  d: { title: "Beta", dead: false },
+};
+const CACHE = {
+  a: vids(daysAgo(5)), //   active
+  b: vids(daysAgo(300)), // dormant
+  d: [], //                 unknown
+};
+
+test("countByStatus tallies every subscription", () => {
+  assert.deepEqual(countByStatus(SUBS, CACHE, NOW), {
+    all: 4,
+    active: 1,
+    quiet: 0,
+    dormant: 1,
+    dead: 1,
+    unknown: 1,
+  });
+});
+
+test("buildChannelRows: default sort is status severity", () => {
+  const rows = buildChannelRows(SUBS, CACHE, {}, NOW);
+  assert.deepEqual(rows.map((r) => r.status), ["dead", "dormant", "active", "unknown"]);
+});
+
+test("buildChannelRows: sort by title asc / desc", () => {
+  const asc = buildChannelRows(SUBS, CACHE, { sort: { column: "title", dir: "asc" } }, NOW);
+  assert.deepEqual(asc.map((r) => r.title), ["Alpha", "Beta", "Gone", "Zeta"]);
+  const desc = buildChannelRows(SUBS, CACHE, { sort: { column: "title", dir: "desc" } }, NOW);
+  assert.deepEqual(desc.map((r) => r.title), ["Zeta", "Gone", "Beta", "Alpha"]);
+});
+
+test("buildChannelRows: sort by lastUpload puts unknowns oldest", () => {
+  const rows = buildChannelRows(SUBS, CACHE, { sort: { column: "lastUpload", dir: "desc" } }, NOW);
+  // newest first: active(5d) > dormant(300d) > dead(null) / unknown(null)
+  assert.equal(rows[0].title, "Zeta");
+  assert.equal(rows[1].title, "Alpha");
+});
+
+test("buildChannelRows: status filter + query", () => {
+  assert.deepEqual(
+    buildChannelRows(SUBS, CACHE, { statusFilter: "dead" }, NOW).map((r) => r.title),
+    ["Gone"]
+  );
+  assert.deepEqual(
+    buildChannelRows(SUBS, CACHE, { query: "et" }, NOW).map((r) => r.title).sort(),
+    ["Beta", "Zeta"]
+  );
+});
+
+test("buildChannelRows: carries dead + subscriptionId for the Unsubscribe action", () => {
+  const [row] = buildChannelRows(SUBS, CACHE, { statusFilter: "dead" }, NOW);
+  assert.equal(row.dead, true);
+  assert.equal(row.subscriptionId, "s-c");
 });

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Channels</title>
+  <link rel="stylesheet" href="channels.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Channel management</h1>
+    <div class="actions">
+      <span id="syncStatus"></span>
+      <button id="refreshBtn" hidden>Refresh now</button>
+    </div>
+  </header>
+
+  <main id="app" hidden>
+    <div class="toolbar">
+      <div id="statusChips" class="status-chips"></div>
+      <input id="searchQuery" type="search" placeholder="Search channel" />
+    </div>
+
+    <table id="channelsTable">
+      <thead>
+        <tr>
+          <th data-column="title">Channel</th>
+          <th data-column="status">Status</th>
+          <th data-column="lastUpload">Last upload</th>
+          <th aria-label="Actions"></th>
+        </tr>
+      </thead>
+      <tbody id="channelsBody"></tbody>
+    </table>
+    <p id="empty" hidden>No channels match.</p>
+  </main>
+
+  <p id="signedOut" hidden>Sign in from the dashboard first.</p>
+
+  <script src="channelHealth.js"></script>
+  <script src="channels.js" type="module"></script>
+</body>
+</html>
