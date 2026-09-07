@@ -7,8 +7,8 @@ Chrome-расширение (Manifest V3) для управления YouTube-п
 - **Группы подписок** — создание/удаление групп, назначение каналов в группу ([dashboard.html](dashboard.html), [dashboard.js](dashboard.js)).
 - **Лента по группе** с фильтрами (Video/Short/Live) и сортировкой (дата/длительность/просмотры), отметка "просмотрено".
 - **Управление каналами** — обнаружение "мёртвых" (удалённых/недоступных) каналов, массовая отписка.
-- **Бейдж локации канала** — страна канала показывается рядом с названием на странице просмотра ([content-location.js](content-location.js)).
-- **Встройка в сайдбар YouTube** — секция "My groups" прямо в левом меню youtube.com, переключение группы открывает лёгкий оверлей с лентой поверх контента, не трогая ленту YouTube напрямую ([content-groups.js](content-groups.js)). Управление группами (создание/переименование/назначение) осталось в dashboard.html.
+- **Бейдж локации канала** — страна канала рядом с названием на watch-странице. Логика в [content-groups.js](content-groups.js) (раньше был отдельный `content-location.js` — content-скрипт с match только `watch*` не инжектится на SPA-переходах). Channel id берётся из ссылки автора (`ytd-video-owner-renderer a[href]` → `@handle` или `/channel/UC…`); `channels.list` резолвит handle через `forHandle=`.
+- **Встройка в сайдбар YouTube** — секция "My groups" в левом меню youtube.com, переключение группы открывает лёгкий оверлей с лентой поверх контента, не трогая ленту YouTube напрямую ([content-groups.js](content-groups.js)). Нода вставляется **между `#sections` и `#footer`** — прямым ребёнком `ytd-guide-renderer`, не внутрь `#sections` (им владеет Polymer и таскает/сносит чужие ноды — попытка держать секцию «под Подписками» приводила к драке за позицию и зависанию вкладки). Итог: секция внизу списка гайда, над футер-ссылками. Постоянный throttle-`MutationObserver` только ре-инжектит ноду, если гайд перестроился и её снесло; за позицию не воюет. Управление группами — в dashboard.html.
 - **Авторизация** — OAuth через `chrome.identity.getAuthToken`, один и тот же токен (scope `https://www.googleapis.com/auth/youtube`) используется для всех вызовов API.
 - **Периодическое обновление** — `chrome.alarms`, раз в 45 минут подтягивает новые видео по всем каналам.
 
@@ -32,8 +32,26 @@ Chrome-расширение (Manifest V3) для управления YouTube-п
 - Чтобы ID перестал зависеть от пути — добавить `"key"` в манифест (публичный ключ в base64) и
   один раз обновить Item ID в консоли под новый детерминированный ID.
 
+## Совместимость с DOM YouTube (проверено 2026-09)
+
+- `content-groups.css` держит **свою палитру** (`--yst-*`, переключается по `html[dark]`) — глобальные
+  `--yt-spec-*` YouTube убрал в миграции на новые токены, `var(--yt-spec-*, fallback)` молча
+  съезжал на фолбэк и ломал светлую тему. Метрики (шрифт Roboto, пункты гайда 40px/вес 500/радиус 10px,
+  кнопки-чипы 36px/радиус 18px, синяя текст-кнопка) сняты с живого YouTube.
+- `content-groups.js` строит DOM через `createElement`/`replaceChildren` — под Trusted-Types CSP
+  YouTube (`require-trusted-types-for 'script'`) присваивание строки в `.innerHTML` кидает TypeError,
+  даже пустой строки. Isolated world сейчас освобождён, но Chrome это освобождение убирает.
+- Бейдж локации больше **не** читает `meta[itemprop="channelId"]` — этого тега на
+  watch-странице нет (см. выше про ссылку автора).
+- Структура гайда: `ytd-guide-renderer > #sections` (Polymer dom-repeat) + `ytd-guide-renderer > #footer`.
+  Живы: `ytd-video-owner-renderer #channel-name`, события `yt-navigate-start/finish`.
+- На watch-странице гайд-драуэр закрыт (transform off-screen), `#sections` иногда очищается
+  полностью — секция «My groups» там висит вне экрана, появляется при открытии меню-гамбургера.
+
 ## Известные ограничения / на будущее
 
+- **Mini-guide:** на узком окне YouTube показывает только `ytd-mini-guide-renderer`, полный
+  `#sections` не наполняется — секция «My groups» и переключение групп в этом режиме недоступны.
 - Уведомления по группам (были в списке функций PocketTube) — не реализованы.
 - `manifest.json` содержит реальный `oauth2.client_id` (installed-app credential, не секрет) — см. раздел «OAuth / настройка Google Cloud».
 - Иконки — простые сгенерированные плейсхолдеры ([icons/](icons)), не финальный дизайн.

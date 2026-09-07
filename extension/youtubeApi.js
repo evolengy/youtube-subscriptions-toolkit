@@ -84,14 +84,35 @@ export async function fetchChannelsDetails(token, channelIds) {
       },
     });
     for (const item of data.items ?? []) {
-      found.set(item.id, {
-        channelId: item.id,
-        country: item.snippet.country ?? null,
-        uploadsPlaylistId: item.contentDetails.relatedPlaylists.uploads,
-      });
+      found.set(item.id, mapChannelItem(item));
     }
   }
   return found;
+}
+
+// Single-channel lookup for the watch-page location badge, which only has the
+// owner link to go on. YouTube dropped the <meta itemprop="channelId"> tag, so
+// the content script now passes whatever the owner <a href> gives it: a
+// "@handle" (the common case today) or a raw "UC..." id. channels.list accepts
+// either via forHandle= / id=, both costing the same 1 quota unit.
+// Returns { channelId, country, uploadsPlaylistId } or null if not found.
+export async function fetchChannelDetail(token, { handle, channelId } = {}) {
+  const params = { part: "snippet,contentDetails", maxResults: 1 };
+  if (handle) params.forHandle = handle.replace(/^@/, "");
+  else if (channelId) params.id = channelId;
+  else return null;
+
+  const data = await apiFetch("channels", { token, params });
+  const item = data.items?.[0];
+  return item ? mapChannelItem(item) : null;
+}
+
+function mapChannelItem(item) {
+  return {
+    channelId: item.id,
+    country: item.snippet.country ?? null,
+    uploadsPlaylistId: item.contentDetails.relatedPlaylists.uploads,
+  };
 }
 
 // Latest N video ids from a channel's uploads playlist.

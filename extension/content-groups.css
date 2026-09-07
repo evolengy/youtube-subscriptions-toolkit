@@ -1,103 +1,181 @@
+/* Own palette — YouTube removed the global --yt-spec-* custom properties in
+   its design-token migration, so var(--yt-spec-*, fallback) silently fell
+   back to hardcoded dark values and broke in light mode. We define our own
+   tokens and switch them on <html>'s "dark" attribute, which is still set.
+   Values mirror YouTube's own light/dark chip + guide-entry styling. */
+:root {
+  --yst-font: "Roboto", "Arial", sans-serif;
+  --yst-canvas: #ffffff;
+  --yst-surface: rgba(0, 0, 0, 0.05);
+  --yst-text: #0f0f0f;
+  --yst-text-secondary: #606060;
+  --yst-accent: #065fd4;
+  --yst-accent-hover: rgba(6, 95, 212, 0.1);
+  --yst-border: rgba(0, 0, 0, 0.1);
+  --yst-hover: rgba(0, 0, 0, 0.05);
+  --yst-chip-bg: rgba(0, 0, 0, 0.05);
+  --yst-chip-bg-hover: rgba(0, 0, 0, 0.1);
+}
+html[dark] {
+  --yst-canvas: #0f0f0f;
+  --yst-surface: rgba(255, 255, 255, 0.05);
+  --yst-text: #f1f1f1;
+  --yst-text-secondary: #aaaaaa;
+  --yst-accent: #3ea6ff;
+  --yst-accent-hover: rgba(62, 166, 255, 0.1);
+  --yst-border: rgba(255, 255, 255, 0.1);
+  --yst-hover: rgba(255, 255, 255, 0.1);
+  --yst-chip-bg: rgba(255, 255, 255, 0.1);
+  --yst-chip-bg-hover: rgba(255, 255, 255, 0.2);
+}
+
+/* Channel-country badge on watch pages (was content-location.css). */
+.yst-location-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--yst-surface);
+  color: var(--yst-text-secondary);
+  font: 500 12px/1 var(--yst-font);
+  vertical-align: middle;
+}
+
+/* --- Sidebar section -------------------------------------------------- */
+
 .yst-sidebar-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--yst-border);
   margin-top: 8px;
-  padding-top: 8px;
+  padding: 8px 0;
+  font-family: var(--yst-font);
 }
 .yst-sidebar-title {
   font-size: 14px;
   font-weight: 500;
   padding: 8px 24px 4px;
-  color: var(--yt-spec-text-secondary, #aaa);
+  color: var(--yst-text-secondary);
 }
 .yst-group-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 24px;
+  height: 40px;
+  padding: 0 24px;
   cursor: pointer;
-  border-radius: 0 20px 20px 0;
+  border-radius: 10px;
+  margin: 0 12px;
   font-size: 14px;
-  color: var(--yt-spec-text-primary, #fff);
+  font-weight: 500;
+  color: var(--yst-text);
 }
 .yst-group-row:hover,
 .yst-group-row.active {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--yst-hover);
 }
 .yst-group-row .count {
-  color: var(--yt-spec-text-secondary, #aaa);
+  color: var(--yst-text-secondary);
   font-size: 12px;
+  font-weight: 400;
 }
 .yst-manage-link {
-  padding: 8px 24px;
-  font-size: 13px;
-  color: var(--yt-spec-call-to-action, #3ea6ff);
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 24px;
+  margin: 0 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--yst-accent);
   cursor: pointer;
 }
+.yst-manage-link:hover {
+  background: var(--yst-accent-hover);
+}
+
+/* --- Overlay -------------------------------------------------------- */
 
 .yst-overlay {
   position: fixed;
   inset: 56px 0 0 0;
-  background: var(--yt-spec-base-background, #0f0f0f);
+  background: var(--yst-canvas);
   z-index: 2200;
   overflow-y: auto;
   padding: 20px 24px;
+  font-family: var(--yst-font);
 }
 .yst-overlay-header {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
 .yst-overlay-header h2 {
   font-size: 18px;
+  font-weight: 500;
   margin: 0;
   flex: 1;
-  color: var(--yt-spec-text-primary, #fff);
+  color: var(--yst-text);
 }
 .yst-overlay-header label {
-  font-size: 13px;
-  color: var(--yt-spec-text-primary, #fff);
-}
-.yst-overlay-header select {
-  font-size: 13px;
-  color: var(--yt-spec-text-primary, #fff);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  padding: 4px 8px;
-}
-.yst-overlay-header select option {
-  color: #000;
-}
-.yst-close-btn {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: var(--yt-spec-text-primary, #fff);
-  border-radius: 18px;
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--yst-text);
   cursor: pointer;
 }
+
+/* Pill controls — shared shape for the Type/Sort selects, Close, and the
+   per-card "Mark watched" button, matching YouTube's chip buttons. */
+.yst-overlay-header select,
+.yst-close-btn,
+.yst-video-card button {
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 18px;
+  background: var(--yst-chip-bg);
+  color: var(--yst-text);
+  font: 500 14px var(--yst-font);
+  cursor: pointer;
+}
+.yst-overlay-header select:hover,
+.yst-close-btn:hover,
+.yst-video-card button:hover {
+  background: var(--yst-chip-bg-hover);
+}
+.yst-overlay-header select {
+  padding-right: 12px;
+}
+/* The popped-open option list is OS-drawn (usually on a light menu), so pin
+   it to a fixed readable pair rather than the theme token. */
+.yst-overlay-header select option {
+  color: #0f0f0f;
+  background: #ffffff;
+  font-weight: 400;
+}
+
 .yst-feed {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
 }
 .yst-video-card {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  background: var(--yst-surface);
+  border-radius: 12px;
   overflow: hidden;
 }
 .yst-video-card.watched { opacity: 0.45; }
 .yst-video-card img { width: 100%; display: block; }
-.yst-video-card .info { padding: 8px; font-size: 13px; color: var(--yt-spec-text-primary, #fff); }
-.yst-video-card .meta { color: var(--yt-spec-text-secondary, #aaa); font-size: 12px; margin: 4px 0; }
+.yst-video-card .info { padding: 12px; font-size: 14px; color: var(--yst-text); }
+.yst-video-card .meta { color: var(--yst-text-secondary); font-size: 12px; margin: 4px 0 8px; }
 .yst-video-card button {
+  height: 32px;
+  padding: 0 12px;
   font-size: 12px;
-  padding: 3px 10px;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: var(--yt-spec-text-primary, #fff);
-  border-radius: 12px;
-  cursor: pointer;
+  border-radius: 16px;
 }

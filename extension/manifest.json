@@ -23,12 +23,6 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/watch*"],
-      "js": ["content-location.js"],
-      "css": ["content-location.css"],
-      "run_at": "document_idle"
-    },
-    {
       "matches": ["https://www.youtube.com/*"],
       "js": ["content-groups.js"],
       "css": ["content-groups.css"],

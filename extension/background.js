@@ -26,7 +26,12 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  handleMessage(message).then(sendResponse, (err) => sendResponse({ error: err.message }));
+  handleMessage(message).then(sendResponse, (err) => {
+    // Surface the failure — the caller only sees {error}, and a content-script
+    // requestCountry() swallows it silently.
+    console.error("[YST] handleMessage failed for", message?.type, err);
+    sendResponse({ error: err.message });
+  });
   return true; // keep the message channel open for the async response
 });
 
@@ -53,8 +58,11 @@ async function handleMessage(message) {
     case "GET_CHANNEL_COUNTRY": {
       const token = await api.getAuthToken({ interactive: false });
       if (!token) return { country: null };
-      const details = await api.fetchChannelsDetails(token, [message.channelId]);
-      return { country: details.get(message.channelId)?.country ?? null };
+      const detail = await api.fetchChannelDetail(token, {
+        handle: message.handle,
+        channelId: message.channelId,
+      });
+      return { country: detail?.country ?? null };
     }
     case "UNSUBSCRIBE": {
       const token = await api.getAuthToken({ interactive: false });
