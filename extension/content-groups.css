@@ -214,15 +214,39 @@ html[dark] {
   background: var(--yst-surface);
   border-radius: 12px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
-.yst-video-card.watched,
+/* Dim the parts, not the whole card, so the "watched" bar below stays vivid. */
 .yst-video-card.not-interested { opacity: 0.45; }
+.yst-video-card.watched img,
+.yst-video-card.not-interested img { opacity: 0.45; }
+.yst-video-card.watched .info { opacity: 0.55; }
+.yst-video-card .thumb { position: relative; display: block; }
 .yst-video-card img { width: 100%; display: block; }
-.yst-video-card .info { padding: 12px; font-size: 14px; color: var(--yst-text); }
+/* YouTube-style progress bar for a watched video. */
+.yst-video-card.watched .thumb::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: #f00;
+}
+.yst-video-card .info {
+  padding: 12px;
+  font-size: 14px;
+  color: var(--yst-text);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
 .yst-video-card .meta { color: var(--yst-text-secondary); font-size: 12px; margin: 4px 0 8px; }
 .yst-liked-mark { display: inline-flex; vertical-align: -2px; color: var(--yst-accent); }
 
-.yst-card-actions { display: flex; gap: 4px; }
+/* margin-top:auto pins the actions to the card bottom regardless of title length. */
+.yst-card-actions { display: flex; gap: 4px; margin-top: auto; }
 .yst-card-action {
   display: inline-flex;
   padding: 6px;

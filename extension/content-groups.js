@@ -430,6 +430,7 @@ async function renderOverlay() {
   const hideWatchedLabel = document.createElement("label");
   const hideWatchedCheckbox = document.createElement("input");
   hideWatchedCheckbox.type = "checkbox";
+  hideWatchedCheckbox.checked = true;
   hideWatchedLabel.append(hideWatchedCheckbox, document.createTextNode(" Hide watched"));
   header.appendChild(hideWatchedLabel);
 
@@ -530,6 +531,7 @@ function buildVideoCard(video, { watched, notInterested, liked, pseudo, onChange
     (notInterested && !pseudo ? " not-interested" : "");
 
   const link = document.createElement("a");
+  link.className = "thumb";
   link.href = `/watch?v=${video.videoId}`;
   const img = document.createElement("img");
   img.src = video.thumbnail ?? "";

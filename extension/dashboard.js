@@ -279,6 +279,7 @@ function renderVideoCard(video) {
     (notInterested && !pseudoView ? " not-interested" : "");
 
   const link = document.createElement("a");
+  link.className = "thumb";
   link.href = `https://www.youtube.com/watch?v=${video.videoId}`;
   link.target = "_blank";
   const img = document.createElement("img");

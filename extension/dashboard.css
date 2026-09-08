@@ -85,14 +85,36 @@ button:hover { background: #3f3f3f; }
 }
 .feed-controls input[type="search"] { min-width: 200px; }
 .feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.video-card { background: #181818; border-radius: 8px; overflow: hidden; }
-.video-card.watched, .video-card.not-interested { opacity: 0.45; }
+.video-card {
+  background: #181818;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* Dim the parts, not the whole card, so the "watched" bar below stays vivid. */
+.video-card.not-interested { opacity: 0.45; }
+.video-card.watched img,
+.video-card.not-interested img { opacity: 0.45; }
+.video-card.watched .info { opacity: 0.55; }
+.video-card .thumb { position: relative; display: block; }
 .video-card img { width: 100%; display: block; }
-.video-card .info { padding: 8px; font-size: 13px; }
+/* YouTube-style progress bar for a watched video. */
+.video-card.watched .thumb::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: #f00;
+}
+.video-card .info { padding: 8px; font-size: 13px; flex: 1; display: flex; flex-direction: column; }
 .video-card .meta { color: #aaa; font-size: 12px; margin-top: 4px; }
 .liked-mark-wrap { display: inline-flex; vertical-align: -2px; color: #3ea6ff; }
 
-.card-actions { display: flex; gap: 4px; margin-top: 6px; }
+/* margin-top:auto pins the actions to the card bottom regardless of title length. */
+.card-actions { display: flex; gap: 4px; margin-top: auto; padding-top: 6px; }
 .card-action {
   display: inline-flex;
   padding: 4px;
