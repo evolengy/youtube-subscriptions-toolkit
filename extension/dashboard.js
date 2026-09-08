@@ -1,4 +1,5 @@
 import * as store from "./storage.js";
+import { getEntries as getLogEntries, LOG_STORAGE_KEY } from "./logger.js";
 
 // Plain <script>s in dashboard.html, ahead of this module.
 const { applyFilters, hydrateVideoList } = window.YSTFeed;
@@ -95,6 +96,18 @@ const openPage = (file) => () => chrome.tabs.create({ url: chrome.runtime.getURL
 el("manageChannelsBtn").addEventListener("click", openPage("channels.html"));
 el("editGroupsBtn").addEventListener("click", openPage("groups.html"));
 el("settingsBtn").addEventListener("click", openPage("settings.html")); // no auth needed
+
+el("logsBtn").appendChild(makeIcon("list"));
+el("logsBtn").addEventListener("click", openPage("logs.html"));
+
+async function refreshLogsDot() {
+  const entries = await getLogEntries();
+  el("logsBtn").classList.toggle("has-errors", entries.some((e) => e.level === "error"));
+}
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes[LOG_STORAGE_KEY]) refreshLogsDot();
+});
+refreshLogsDot();
 
 el("signInBtn").addEventListener("click", async () => {
   el("syncStatus").textContent = "Signing in...";

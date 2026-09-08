@@ -25,6 +25,26 @@ button {
 button:hover { background: #3f3f3f; }
 [hidden] { display: none !important; }
 
+.icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px;
+  border-radius: 50%;
+}
+.icon-btn svg { display: block; }
+.icon-btn.has-errors::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4e45;
+  border: 2px solid #0f0f0f;
+}
+
 #app {
   display: grid;
   grid-template-columns: 260px 1fr;

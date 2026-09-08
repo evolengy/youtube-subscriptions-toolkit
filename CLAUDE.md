@@ -275,11 +275,15 @@ via `groups[id].notify`, set on `settings.html`; diff logic in the ESM module
 `apiFetch` retries transient 5xx/429 (not 4xx) with exponential backoff (`node --test
 youtubeApi.test.mjs`), and `refreshAll`'s per-channel loop is `try`-wrapped so one
 channel's failure keeps its previous cached videos instead of aborting the whole sync.
-`storage.js` wraps `chrome.storage`. The UI is four extension pages: `dashboard.html/js`
-(groups list, feed) plus `channels.html` (channel health table), `groups.html`
-(assign channels ↔ groups) and `settings.html` (hide sections of YouTube's own left
-guide), the latter three opened from the dashboard via `chrome.tabs.create`
-(`settings.html`'s button is always shown — it needs no auth). The single content script `content-groups.js` (matched to all of
+`storage.js` wraps `chrome.storage`. `logger.js` (ESM) is a 200-entry ring buffer in
+`chrome.storage.local` — `background.js` records each sync's outcome and its errors
+there (the MV3 worker's own console is ephemeral); surface is `logs.html`. The UI is
+five extension pages: `dashboard.html/js` (groups list, feed) plus `channels.html`
+(channel health table), `groups.html` (assign channels ↔ groups), `settings.html` (hide
+sections of YouTube's own left guide; feed blocklist; per-group notification opt-in) and
+`logs.html` (the activity log), the latter four opened from the dashboard via
+`chrome.tabs.create` (the `settings.html` and `logs.html` buttons are always shown — they
+need no auth). The single content script `content-groups.js` (matched to all of
 `youtube.com/*`, so it survives SPA navigation) injects a "My groups" section + grouped-feed
 overlay into YouTube's sidebar **and** the channel-country badge on watch pages — it is the
 fragile part the desktop client exists to avoid.

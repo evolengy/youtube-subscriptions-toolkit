@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Activity log</title>
+  <link rel="stylesheet" href="logs.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Activity log</h1>
+    <span id="hint">Last 200 sync results and errors. Kept locally, not synced.</span>
+    <button id="clearBtn">Clear</button>
+  </header>
+
+  <main class="page">
+    <ol id="entries" class="entries"></ol>
+    <p id="empty" class="note" hidden>Nothing logged yet.</p>
+  </main>
+
+  <script src="logs.js" type="module"></script>
+</body>
+</html>

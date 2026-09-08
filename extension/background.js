@@ -1,6 +1,7 @@
 import * as api from "./youtubeApi.js";
 import * as store from "./storage.js";
 import { collectNewVideosForNotify } from "./groupNotify.js";
+import { logger } from "./logger.js";
 
 const DASHBOARD_URL = chrome.runtime.getURL("dashboard.html");
 const GROUP_NOTIFY_PREFIX = "yst-group:";
@@ -32,14 +33,16 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === REFRESH_ALARM) refreshAll().catch(console.error);
+  if (alarm.name === REFRESH_ALARM) {
+    refreshAll().catch((err) => logger.error(`Scheduled sync failed: ${err.message}`));
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   handleMessage(message).then(sendResponse, (err) => {
     // Surface the failure — the caller only sees {error}, and a content-script
     // requestCountry() swallows it silently.
-    console.error("[YST] handleMessage failed for", message?.type, err);
+    logger.error(`${message?.type} failed: ${err.message}`);
     sendResponse({ error: err.message });
   });
   return true; // keep the message channel open for the async response
@@ -52,11 +55,15 @@ async function handleMessage(message) {
       return {};
     case "SIGN_IN": {
       const token = await api.getAuthToken({ interactive: true });
-      if (token) await refreshAll();
+      if (token) {
+        logger.info("Signed in");
+        await refreshAll();
+      }
       return { token };
     }
     case "SIGN_OUT":
       await api.signOut();
+      logger.info("Signed out");
       return {};
     case "GET_AUTH_STATUS": {
       const token = await api.getAuthToken({ interactive: false });
@@ -118,6 +125,7 @@ async function refreshAll() {
   await store.saveSubscriptionsCache(subscriptionsCache);
 
   const videosCache = {};
+  let failedChannels = 0;
   for (const [channelId, sub] of Object.entries(subscriptionsCache)) {
     if (sub.dead || !sub.uploadsPlaylistId) continue;
     try {
@@ -128,7 +136,8 @@ async function refreshAll() {
       // One channel failing (transient API error that outlasted the retries,
       // or a per-channel 403) must not discard the whole sync. Keep whatever we
       // had for this channel and move on.
-      console.error("[YST] refresh failed for channel", channelId, err);
+      failedChannels++;
+      logger.error(`Refresh failed for ${sub.title || channelId}: ${err.message}`);
       if (previousVideosCache[channelId]) videosCache[channelId] = previousVideosCache[channelId];
     }
   }
@@ -139,7 +148,7 @@ async function refreshAll() {
   try {
     await notifyGroupsOfNewVideos(previousVideosCache, videosCache, notifySince);
   } catch (err) {
-    console.error("[YST] group notifications failed", err);
+    logger.error(`Group notifications failed: ${err.message}`);
   }
 
   // Liked videos — a bonus signal for the feed ("liked = watched"). A failure
@@ -147,10 +156,19 @@ async function refreshAll() {
   try {
     await store.saveLikedVideos(await api.fetchLikedVideos(token));
   } catch (err) {
-    console.error("[YST] fetchLikedVideos failed", err);
+    logger.error(`Liked-videos sync failed: ${err.message}`);
   }
 
   await store.markSynced();
+
+  const withNew = Object.entries(videosCache).filter(([cid, vids]) => {
+    const known = new Set((previousVideosCache[cid] || []).map((v) => v.videoId));
+    return vids.some((v) => !known.has(v.videoId));
+  }).length;
+  const suffix = failedChannels ? `, ${failedChannels} failed` : "";
+  logger.info(
+    `Sync OK — ${Object.keys(videosCache).length} channels, ${withNew} with new videos${suffix}`
+  );
 }
 
 async function notifyGroupsOfNewVideos(previousVideosCache, videosCache, since) {
