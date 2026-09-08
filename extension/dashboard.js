@@ -21,6 +21,7 @@ let notInterestedMeta = {};
 let likedVideos = {};
 let likedIds = new Set();
 let groupLastVisited = {};
+let syncFallback = null; // "since" for a group with no lastVisited entry
 let newCounts = {};
 let activeGroupId = null;
 
@@ -53,12 +54,19 @@ async function loadState() {
     store.getGroupLastVisited(),
   ]);
   likedIds = new Set(Object.keys(likedVideos));
+
+  const [prevSyncedAt, lastSyncedAt] = await Promise.all([
+    store.getPrevSyncedAt(),
+    store.getLastSyncedAt(),
+  ]);
+  syncFallback = prevSyncedAt ?? lastSyncedAt;
   recomputeNewCounts();
 }
 
 function recomputeNewCounts() {
   newCounts = countNewPerGroup(groups, videosByChannel, {
     lastVisited: groupLastVisited,
+    fallbackSince: syncFallback,
     watchedIds,
     notInterestedIds,
     allChannelIds: Object.keys(subscriptions),

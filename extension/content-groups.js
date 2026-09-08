@@ -67,6 +67,8 @@ function getLocalData() {
     "videosCache",
     "likedVideos",
     "notInterestedVideos",
+    "prevSyncedAt",
+    "lastSyncedAt",
   ]);
 }
 
@@ -150,12 +152,13 @@ async function renderSidebar() {
 
   const [
     { groups, watchedVideoIds, notInterestedVideoIds, groupLastVisited },
-    { subscriptionsCache, videosCache, likedVideos },
+    { subscriptionsCache, videosCache, likedVideos, prevSyncedAt, lastSyncedAt },
   ] = await Promise.all([getSyncData(), getLocalData()]);
   const entries = Object.entries(groups || {});
 
   const newCounts = countNewPerGroup(groups || {}, videosCache || {}, {
     lastVisited: groupLastVisited || {},
+    fallbackSince: prevSyncedAt ?? lastSyncedAt ?? null,
     watchedIds: new Set(watchedVideoIds || []),
     notInterestedIds: new Set(notInterestedVideoIds || []),
     allChannelIds: Object.keys(subscriptionsCache || {}),
@@ -656,7 +659,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
   ) {
     refreshSidebar(); // rows, counts or "N new" badges changed
   }
-  if (area === "local" && (changes.likedVideos || changes.videosCache)) {
-    refreshSidebar(); // a sync refreshed the liked list / brought new videos
+  if (
+    area === "local" &&
+    (changes.likedVideos || changes.videosCache || changes.prevSyncedAt)
+  ) {
+    refreshSidebar(); // a sync refreshed the liked list / videos / the "new" baseline
   }
 });

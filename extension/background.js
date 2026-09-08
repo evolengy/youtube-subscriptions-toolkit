@@ -121,5 +121,5 @@ async function refreshAll() {
     console.error("[YST] fetchLikedVideos failed", err);
   }
 
-  await store.setLastSyncedAt(Date.now());
+  await store.markSynced();
 }

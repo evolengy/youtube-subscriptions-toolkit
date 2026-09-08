@@ -33,21 +33,29 @@
 
   // -> { [groupId]: count, __all__: count }. Every group gets an entry (0
   // included); the caller renders a badge only when count > 0.
+  //
+  // A group with no lastVisited entry (never opened) falls back to
+  // `fallbackSince` — the caller passes the previous sync's timestamp, so a
+  // fresh install still shows "arrived in the last sync" rather than nothing.
+  // With neither, the count is 0.
   function countNewPerGroup(groups, videosByChannel, opts = {}) {
     const {
       lastVisited = {},
+      fallbackSince = null,
       watchedIds = new Set(),
       notInterestedIds = new Set(),
       allChannelIds = [],
       now = Date.now(),
     } = opts;
 
+    const since = (key) => lastVisited[key] ?? fallbackSince;
+
     const result = {};
     for (const [groupId, group] of Object.entries(groups || {})) {
       result[groupId] = countNew(
         group.channelIds ?? [],
         videosByChannel,
-        lastVisited[groupId],
+        since(groupId),
         watchedIds,
         notInterestedIds,
         now
@@ -56,7 +64,7 @@
     result[ALL_KEY] = countNew(
       allChannelIds,
       videosByChannel,
-      lastVisited[ALL_KEY],
+      since(ALL_KEY),
       watchedIds,
       notInterestedIds,
       now

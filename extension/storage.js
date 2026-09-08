@@ -12,6 +12,7 @@ const LOCAL_KEYS = {
   subscriptionsCache: "subscriptionsCache",
   videosCache: "videosCache",
   lastSyncedAt: "lastSyncedAt",
+  prevSyncedAt: "prevSyncedAt",
   likedVideos: "likedVideos",
   notInterestedVideos: "notInterestedVideos",
 };
@@ -195,13 +196,26 @@ export async function saveLikedVideos(list) {
   await chrome.storage.local.set({ [LOCAL_KEYS.likedVideos]: map });
 }
 
-export async function setLastSyncedAt(timestamp) {
-  await chrome.storage.local.set({ [LOCAL_KEYS.lastSyncedAt]: timestamp });
+// Called once a sync finishes: the old lastSyncedAt becomes prevSyncedAt, so
+// "N new" badges for a never-opened group can fall back to "since the sync
+// before this one" instead of showing nothing.
+export async function markSynced() {
+  const prev = await getLastSyncedAt();
+  const updates = { [LOCAL_KEYS.lastSyncedAt]: Date.now() };
+  if (prev) updates[LOCAL_KEYS.prevSyncedAt] = prev;
+  await chrome.storage.local.set(updates);
 }
 
 export async function getLastSyncedAt() {
   const { [LOCAL_KEYS.lastSyncedAt]: ts } = await chrome.storage.local.get(
     LOCAL_KEYS.lastSyncedAt
+  );
+  return ts || null;
+}
+
+export async function getPrevSyncedAt() {
+  const { [LOCAL_KEYS.prevSyncedAt]: ts } = await chrome.storage.local.get(
+    LOCAL_KEYS.prevSyncedAt
   );
   return ts || null;
 }

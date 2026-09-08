@@ -35,11 +35,23 @@ test("countNewPerGroup: counts videos published after lastVisited", () => {
   assert.equal(out.__all__, 4);
 });
 
-test("countNewPerGroup: no timestamp -> 0 (no baseline yet)", () => {
+test("countNewPerGroup: no timestamp and no fallback -> 0", () => {
   const out = countNewPerGroup(groups, videosByChannel, { lastVisited: {}, now: NOW });
   assert.equal(out.g1, 0);
   assert.equal(out.g2, 0);
   assert.equal(out.__all__, 0);
+});
+
+test("countNewPerGroup: never-opened group falls back to fallbackSince", () => {
+  const out = countNewPerGroup(groups, videosByChannel, {
+    lastVisited: { g1: NOW - 60 * 1000 }, // g1 opened a minute ago
+    fallbackSince: NOW - 5 * day,
+    allChannelIds: ["c1", "c2", "c3"],
+    now: NOW,
+  });
+  assert.equal(out.g1, 0); // explicit recent timestamp wins over the fallback
+  assert.equal(out.g2, 1); // g2 has no timestamp -> fallbackSince -> c3-new
+  assert.equal(out.__all__, 4);
 });
 
 test("countNewPerGroup: excludes watched and not-interested", () => {
