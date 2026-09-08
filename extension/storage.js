@@ -8,6 +8,7 @@ const SYNC_KEYS = {
   notInterestedVideoIds: "notInterestedVideoIds",
   groupLastVisited: "groupLastVisited",
   guideHidden: "guideHidden",
+  feedBlocklist: "feedBlocklist",
 };
 const LOCAL_KEYS = {
   subscriptionsCache: "subscriptionsCache",
@@ -158,6 +159,36 @@ export async function removeNotInterested(videoId) {
     delete map[videoId];
     await chrome.storage.local.set({ [LOCAL_KEYS.notInterestedVideos]: map });
   }
+}
+
+// Feed blocklist — { keywords: string[], mutedChannels: string[] }. A video is
+// cut from the feed if its channel is muted or a keyword appears in its title /
+// channel name. Rule-based counterpart to the per-video "not interested" list.
+const MAX_BLOCK_KEYWORDS = 100;
+const MAX_MUTED_CHANNELS = 300;
+
+export async function getFeedBlocklist() {
+  const { [SYNC_KEYS.feedBlocklist]: value } = await chrome.storage.sync.get(
+    SYNC_KEYS.feedBlocklist
+  );
+  return { keywords: [], mutedChannels: [], ...(value || {}) };
+}
+
+export async function setBlocklistKeywords(list) {
+  const keywords = [
+    ...new Set((list || []).map((k) => k.trim().toLowerCase()).filter(Boolean)),
+  ].slice(0, MAX_BLOCK_KEYWORDS);
+  const current = await getFeedBlocklist();
+  await chrome.storage.sync.set({ [SYNC_KEYS.feedBlocklist]: { ...current, keywords } });
+}
+
+export async function toggleMutedChannel(channelId, muted) {
+  const current = await getFeedBlocklist();
+  const set = new Set(current.mutedChannels);
+  if (muted) set.add(channelId);
+  else set.delete(channelId);
+  const mutedChannels = Array.from(set).slice(-MAX_MUTED_CHANNELS);
+  await chrome.storage.sync.set({ [SYNC_KEYS.feedBlocklist]: { ...current, mutedChannels } });
 }
 
 // Which sections of YouTube's own left guide to hide — { shorts, subChannels,

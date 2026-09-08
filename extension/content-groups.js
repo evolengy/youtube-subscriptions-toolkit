@@ -38,7 +38,19 @@ function getSyncData() {
     "watchedVideoIds",
     "notInterestedVideoIds",
     "groupLastVisited",
+    "feedBlocklist",
   ]);
+}
+
+async function toggleMutedChannel(channelId, muted) {
+  const { feedBlocklist } = await chrome.storage.sync.get("feedBlocklist");
+  const bl = feedBlocklist || {};
+  const set = new Set(bl.mutedChannels || []);
+  if (muted) set.add(channelId);
+  else set.delete(channelId);
+  await chrome.storage.sync.set({
+    feedBlocklist: { keywords: bl.keywords || [], mutedChannels: Array.from(set).slice(-300) },
+  });
 }
 
 // --- Guide declutter (hide chosen sections of YouTube's own left menu) ------
@@ -343,18 +355,23 @@ async function toggleOverlay(groupKey) {
 
 async function getVisibleVideos(groupKey) {
   const [
-    { groups, watchedVideoIds, notInterestedVideoIds },
+    { groups, watchedVideoIds, notInterestedVideoIds, feedBlocklist },
     { subscriptionsCache, videosCache, likedVideos, notInterestedVideos },
   ] = await Promise.all([getSyncData(), getLocalData()]);
 
+  const blocklist = feedBlocklist || {};
+  const pseudo = isPseudoKey(groupKey);
   const common = {
     watchedIds: new Set(watchedVideoIds || []),
     notInterestedIds: new Set(notInterestedVideoIds || []),
     likedIds: new Set(Object.keys(likedVideos || {})),
     channelTitleOf: (id) => (subscriptionsCache || {})[id]?.title ?? "",
+    // Pseudo-groups are the user's explicit lists — no blocklist there.
+    blockedKeywords: pseudo ? [] : blocklist.keywords || [],
+    mutedChannelIds: new Set(pseudo ? [] : blocklist.mutedChannels || []),
   };
 
-  if (isPseudoKey(groupKey)) {
+  if (pseudo) {
     const flat = [];
     for (const list of Object.values(videosCache || {})) flat.push(...list);
     const [ids, metaMap] =
@@ -447,6 +464,12 @@ async function renderOverlay() {
   showNiLabel.append(showNiCheckbox, document.createTextNode(" Show not interested"));
   header.appendChild(showNiLabel);
 
+  const showBlockedLabel = document.createElement("label");
+  const showBlockedCheckbox = document.createElement("input");
+  showBlockedCheckbox.type = "checkbox";
+  showBlockedLabel.append(showBlockedCheckbox, document.createTextNode(" Show blocked"));
+  header.appendChild(showBlockedLabel);
+
   const searchInput = document.createElement("input");
   searchInput.type = "search";
   searchInput.className = "yst-search";
@@ -465,8 +488,15 @@ async function renderOverlay() {
   overlay.append(header, feed);
 
   const rerenderFeed = async () => {
-    const { videos, watchedIds, notInterestedIds, likedIds, channelTitleOf } =
-      await getVisibleVideos(activeGroupKey);
+    const {
+      videos,
+      watchedIds,
+      notInterestedIds,
+      likedIds,
+      channelTitleOf,
+      blockedKeywords,
+      mutedChannelIds,
+    } = await getVisibleVideos(activeGroupKey);
     const likedAsWatched = likedWatchedCheckbox.checked;
     const filtered = applyFilters(videos, {
       type: typeSelect.value,
@@ -481,6 +511,9 @@ async function renderOverlay() {
       showNotInterested: activeGroupKey === NI_KEY || showNiCheckbox.checked,
       likedIds,
       likedAsWatched,
+      blockedKeywords,
+      mutedChannelIds,
+      showBlocked: showBlockedCheckbox.checked,
     });
 
     const pseudo = isPseudoKey(activeGroupKey);
@@ -491,6 +524,7 @@ async function renderOverlay() {
           watched: watchedIds.has(video.videoId) || (video.liked && likedAsWatched),
           notInterested: notInterestedIds.has(video.videoId),
           liked: video.liked,
+          channelMuted: mutedChannelIds.has(video.channelId),
           pseudo,
           onChange: rerenderFeed,
         })
@@ -506,6 +540,7 @@ async function renderOverlay() {
     hideWatchedCheckbox,
     likedWatchedCheckbox,
     showNiCheckbox,
+    showBlockedCheckbox,
   ]) {
     control.addEventListener("change", rerenderFeed);
   }
@@ -522,13 +557,14 @@ function iconButton(name, label) {
   return btn;
 }
 
-function buildVideoCard(video, { watched, notInterested, liked, pseudo, onChange }) {
+function buildVideoCard(video, { watched, notInterested, liked, channelMuted, pseudo, onChange }) {
   const card = document.createElement("div");
   // See dashboard.js: no whole-grid dimming inside a pseudo-group.
   card.className =
     "yst-video-card" +
     (watched && !pseudo ? " watched" : "") +
-    (notInterested && !pseudo ? " not-interested" : "");
+    (notInterested && !pseudo ? " not-interested" : "") +
+    (video.blocked && !pseudo ? " blocked" : "");
 
   const link = document.createElement("a");
   link.className = "thumb";
@@ -572,7 +608,18 @@ function buildVideoCard(video, { watched, notInterested, liked, pseudo, onChange
     onChange();
   });
 
-  actions.append(watchBtn, niBtn);
+  const muteBtn = iconButton(
+    channelMuted ? "eye" : "eyeOff",
+    channelMuted ? "Unmute channel in feed" : "Hide this channel from the feed"
+  );
+  muteBtn.classList.toggle("on", channelMuted);
+  muteBtn.addEventListener("click", async () => {
+    if (!video.channelId) return;
+    await toggleMutedChannel(video.channelId, !channelMuted);
+    onChange();
+  });
+
+  actions.append(watchBtn, niBtn, muteBtn);
   info.append(title, meta, actions);
   card.append(link, info);
   return card;
@@ -686,5 +733,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
     (changes.likedVideos || changes.videosCache || changes.prevSyncedAt)
   ) {
     refreshSidebar(); // a sync refreshed the liked list / videos / the "new" baseline
+  }
+  // Blocklist edited on settings.html while the overlay is open.
+  if (area === "sync" && changes.feedBlocklist && getOverlay()) {
+    renderOverlay().catch((e) => warn("renderOverlay failed", e));
   }
 });

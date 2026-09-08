@@ -118,6 +118,35 @@ test("applyFilters: not-interested is hidden by default, shown on request", () =
   );
 });
 
+test("applyFilters: blocklist hides muted channels and keyword matches", () => {
+  const videos = [
+    vid({ videoId: "keep", title: "Normal video", channelId: "c1" }),
+    vid({ videoId: "muted", title: "Anything", channelId: "c2" }),
+    vid({ videoId: "kw", title: "LIVE stream replay", channelId: "c1" }),
+  ];
+  const channelTitleOf = (id) => (id === "c1" ? "Fireship" : "NoiseChannel");
+  const opts = {
+    channelTitleOf,
+    mutedChannelIds: new Set(["c2"]),
+    blockedKeywords: ["live stream"],
+  };
+
+  assert.deepEqual(applyFilters(videos, opts).map((v) => v.videoId), ["keep"]);
+
+  // showBlocked surfaces them again, with a blocked flag
+  const shown = applyFilters(videos, { ...opts, showBlocked: true });
+  assert.deepEqual(shown.map((v) => v.videoId).sort(), ["keep", "kw", "muted"]);
+  assert.equal(shown.find((v) => v.videoId === "muted").blocked, true);
+  assert.equal(shown.find((v) => v.videoId === "kw").blocked, true);
+  assert.equal(shown.find((v) => v.videoId === "keep").blocked, false);
+});
+
+test("applyFilters: keyword match also checks the channel name, case-insensitively", () => {
+  const videos = [vid({ videoId: "a", title: "clip", channelId: "c1" })];
+  const channelTitleOf = () => "Daily Drama Channel";
+  assert.equal(applyFilters(videos, { channelTitleOf, blockedKeywords: ["DRAMA"] }).length, 0);
+});
+
 test("hydrateVideoList: meta wins, cache fills gaps, unknowns get a placeholder", () => {
   const meta = {
     a: { videoId: "a", title: "Liked A", thumbnail: "ta", channelId: "ca", publishedAt: "2024-01-01" },

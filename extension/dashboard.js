@@ -23,6 +23,8 @@ let likedIds = new Set();
 let groupLastVisited = {};
 let syncFallback = null; // "since" for a group with no lastVisited entry
 let newCounts = {};
+let feedBlocklist = { keywords: [], mutedChannels: [] };
+let mutedChannelIds = new Set();
 let activeGroupId = null;
 
 const el = (id) => document.getElementById(id);
@@ -54,6 +56,9 @@ async function loadState() {
     store.getGroupLastVisited(),
   ]);
   likedIds = new Set(Object.keys(likedVideos));
+
+  feedBlocklist = await store.getFeedBlocklist();
+  mutedChannelIds = new Set(feedBlocklist.mutedChannels);
 
   const [prevSyncedAt, lastSyncedAt] = await Promise.all([
     store.getPrevSyncedAt(),
@@ -200,6 +205,14 @@ chrome.storage.onChanged.addListener((changes, area) => {
       renderFeed();
     });
   }
+  // Blocklist edited on settings.html (or another tab).
+  if (area === "sync" && changes.feedBlocklist) {
+    store.getFeedBlocklist().then((bl) => {
+      feedBlocklist = bl;
+      mutedChannelIds = new Set(bl.mutedChannels);
+      renderFeed();
+    });
+  }
 });
 
 // --- Feed -------------------------------------------------------------
@@ -235,6 +248,9 @@ function renderFeed() {
   const feed = el("feed");
   feed.innerHTML = "";
 
+  // Pseudo-groups are the user's explicit lists — show them whole, no blocklist.
+  const pseudo = activeGroupId === LIKED_KEY || activeGroupId === NI_KEY;
+
   const videos = applyFilters(collectVideos(), {
     type: el("filterType").value,
     sortBy: el("sortBy").value,
@@ -248,6 +264,9 @@ function renderFeed() {
     showNotInterested: activeGroupId === NI_KEY || el("showNotInterested").checked,
     likedIds,
     likedAsWatched: el("likedAsWatched").checked,
+    blockedKeywords: pseudo ? [] : feedBlocklist.keywords,
+    mutedChannelIds: pseudo ? new Set() : mutedChannelIds,
+    showBlocked: el("showBlocked").checked,
   });
 
   for (const video of videos) {
@@ -272,11 +291,14 @@ function renderVideoCard(video) {
   // definition — dimming the whole grid conveys nothing, so skip it there.
   const pseudoView = activeGroupId === LIKED_KEY || activeGroupId === NI_KEY;
 
+  const channelMuted = mutedChannelIds.has(video.channelId);
+
   const card = document.createElement("div");
   card.className =
     "video-card" +
     (watched && !pseudoView ? " watched" : "") +
-    (notInterested && !pseudoView ? " not-interested" : "");
+    (notInterested && !pseudoView ? " not-interested" : "") +
+    (video.blocked && !pseudoView ? " blocked" : "");
 
   const link = document.createElement("a");
   link.className = "thumb";
@@ -332,7 +354,20 @@ function renderVideoCard(video) {
     renderFeed();
   });
 
-  actions.append(watchBtn, niBtn);
+  const muteBtn = iconButton(
+    channelMuted ? "eye" : "eyeOff",
+    channelMuted ? "Unmute channel in feed" : "Hide this channel from the feed"
+  );
+  muteBtn.classList.toggle("on", channelMuted);
+  muteBtn.addEventListener("click", async () => {
+    if (!video.channelId) return;
+    await store.toggleMutedChannel(video.channelId, !channelMuted);
+    feedBlocklist = await store.getFeedBlocklist();
+    mutedChannelIds = new Set(feedBlocklist.mutedChannels);
+    renderFeed();
+  });
+
+  actions.append(watchBtn, niBtn, muteBtn);
   info.append(title, meta, actions);
   card.append(link, info);
   return card;
@@ -346,6 +381,7 @@ for (const id of [
   "hideWatched",
   "likedAsWatched",
   "showNotInterested",
+  "showBlocked",
 ]) {
   el(id).addEventListener("change", renderFeed);
 }

@@ -58,6 +58,15 @@
     return haystack.includes(needle);
   }
 
+  // Feed blocklist: true if any keyword appears in the title or channel name.
+  // Storage lowercases keywords on save; lowercased again here so a caller
+  // passing raw strings still works.
+  function matchesAnyKeyword(video, keywords, channelTitleOf) {
+    if (!keywords || !keywords.length) return false;
+    const haystack = `${video.title} ${channelTitleOf(video.channelId) || ""}`.toLowerCase();
+    return keywords.some((k) => k && haystack.includes(k.toLowerCase()));
+  }
+
   // videos: raw VideoInfo objects (with .duration ISO string, .publishedAt,
   // .viewCount, .liveBroadcastContent, .videoId, .channelId, .title).
   // Returns a new array, enriched with { durationSeconds, type }, filtered and
@@ -76,6 +85,9 @@
       showNotInterested = false,
       likedIds = new Set(),
       likedAsWatched = false,
+      blockedKeywords = [],
+      mutedChannelIds = new Set(),
+      showBlocked = false,
     } = opts || {};
 
     const now = Date.now();
@@ -84,14 +96,24 @@
     const enriched = videos.map((v) => {
       const durationSeconds = parseIsoDuration(v.duration);
       const liked = likedIds.has(v.videoId);
-      return { ...v, durationSeconds, type: classifyVideoType(v, durationSeconds), liked };
+      const blocked =
+        mutedChannelIds.has(v.channelId) ||
+        matchesAnyKeyword(v, blockedKeywords, channelTitleOf);
+      return {
+        ...v,
+        durationSeconds,
+        type: classifyVideoType(v, durationSeconds),
+        liked,
+        blocked,
+      };
     });
 
     const isWatched = (v) => watchedIds.has(v.videoId) || (likedAsWatched && v.liked);
 
     const filtered = enriched.filter((v) => {
-      // "Not interested" is hidden by default; showNotInterested surfaces them
-      // (so they can be restored).
+      // Blocklist (muted channel / keyword) and "not interested" are both hidden
+      // by default; their show* flags surface them again.
+      if (v.blocked && !showBlocked) return false;
       if (notInterestedIds.has(v.videoId) && !showNotInterested) return false;
       if (type !== "all" && v.type !== type) return false;
       if (hideWatched && isWatched(v)) return false;
@@ -134,7 +156,14 @@
     });
   }
 
-  const api = { parseIsoDuration, classifyVideoType, matchesQuery, applyFilters, hydrateVideoList };
+  const api = {
+    parseIsoDuration,
+    classifyVideoType,
+    matchesQuery,
+    matchesAnyKeyword,
+    applyFilters,
+    hydrateVideoList,
+  };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api; // node test
   root.YSTFeed = api; // browser (dashboard + content script)

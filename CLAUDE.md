@@ -285,7 +285,9 @@ before the page's ES module; content-script ones also listed in the manifest `js
 pseudo-groups, shared dashboard + overlay), `groupCounts.js` (`countNewPerGroup` — the
 "N new since last opened" group badges, shared dashboard + overlay), `guideDeclutter.js`
 (`buildGuideCss` — CSS to hide chosen sections of YouTube's own left guide, driven by
-the `guideHidden` sync key; surface is `settings.html`), `channelHealth.js`
+the `guideHidden` sync key; surface is `settings.html`; `settings.html` also edits the
+`feedBlocklist` sync key — keyword + muted-channel feed filter applied in `feedFilter.js`),
+`channelHealth.js`
 (activity classification, `channels.html`), `groupEditor.js` (`groups.html`),
 `emojiPicker.js` + `emojiData.js` (group-icon picker, used by `groups.html` and the
 content script), `icons.js` (`window.YSTIcons.make` — inline-SVG card-action icons,

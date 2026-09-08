@@ -42,9 +42,53 @@ async function render() {
   }
 }
 
+// --- Feed blocklist -------------------------------------------------------
+
+async function renderBlocklist() {
+  const [blocklist, subs] = await Promise.all([
+    store.getFeedBlocklist(),
+    store.getSubscriptionsCache(),
+  ]);
+
+  const box = el("blockKeywords");
+  if (document.activeElement !== box) box.value = blocklist.keywords.join("\n");
+
+  const list = el("mutedChannels");
+  list.replaceChildren();
+  el("noMuted").hidden = blocklist.mutedChannels.length > 0;
+
+  for (const channelId of blocklist.mutedChannels) {
+    const li = document.createElement("li");
+    const row = document.createElement("div");
+    row.className = "muted-row";
+
+    const name = document.createElement("span");
+    name.className = "t-title";
+    name.textContent = subs[channelId]?.title || channelId;
+
+    const btn = document.createElement("button");
+    btn.textContent = "Unmute";
+    btn.addEventListener("click", async () => {
+      await store.toggleMutedChannel(channelId, false);
+      renderBlocklist();
+    });
+
+    row.append(name, btn);
+    li.append(row);
+    list.append(li);
+  }
+}
+
+el("blockKeywords").addEventListener("change", (e) => {
+  store.setBlocklistKeywords(e.target.value.split("\n"));
+});
+
 // Reflect edits made from another tab / device.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "sync" && changes.guideHidden) render();
+  if (area !== "sync") return;
+  if (changes.guideHidden) render();
+  if (changes.feedBlocklist) renderBlocklist();
 });
 
 render();
+renderBlocklist();

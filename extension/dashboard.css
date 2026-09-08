@@ -93,7 +93,8 @@ button:hover { background: #3f3f3f; }
   flex-direction: column;
 }
 /* Dim the parts, not the whole card, so the "watched" bar below stays vivid. */
-.video-card.not-interested { opacity: 0.45; }
+.video-card.not-interested,
+.video-card.blocked { opacity: 0.45; }
 .video-card.watched img,
 .video-card.not-interested img { opacity: 0.45; }
 .video-card.watched .info { opacity: 0.55; }

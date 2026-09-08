@@ -20,6 +20,24 @@
       </p>
       <ul id="guideToggles" class="toggles"></ul>
     </section>
+
+    <section class="group">
+      <h2>Feed blocklist</h2>
+      <p class="note">
+        Videos are cut from the group feed if a keyword appears in the title or
+        channel name, or the channel is muted. Toggle “Show blocked” in the feed
+        controls to review them.
+      </p>
+      <label class="field">
+        <span class="field-label">Blocked keywords — one per line</span>
+        <textarea id="blockKeywords" rows="5" placeholder="live stream&#10;#shorts&#10;reaction"></textarea>
+      </label>
+      <div class="muted-channels">
+        <span class="field-label">Muted channels</span>
+        <ul id="mutedChannels" class="toggles"></ul>
+        <p id="noMuted" class="note" hidden>No muted channels. Use the eye icon on a video card.</p>
+      </div>
+    </section>
   </main>
 
   <script src="settings.js" type="module"></script>

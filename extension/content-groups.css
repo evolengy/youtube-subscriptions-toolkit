@@ -218,7 +218,8 @@ html[dark] {
   flex-direction: column;
 }
 /* Dim the parts, not the whole card, so the "watched" bar below stays vivid. */
-.yst-video-card.not-interested { opacity: 0.45; }
+.yst-video-card.not-interested,
+.yst-video-card.blocked { opacity: 0.45; }
 .yst-video-card.watched img,
 .yst-video-card.not-interested img { opacity: 0.45; }
 .yst-video-card.watched .info { opacity: 0.55; }
