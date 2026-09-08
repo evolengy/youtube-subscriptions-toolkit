@@ -280,14 +280,19 @@ fragile part the desktop client exists to avoid.
 
 Pure, `node --test`-covered logic modules (`window.YST*` globals, loaded by plain `<script>`
 before the page's ES module; content-script ones also listed in the manifest `js` array):
-`feedFilter.js` (feed filter/sort, shared dashboard + overlay), `channelHealth.js`
+`feedFilter.js` (feed filter/sort + `hydrateVideoList` for the liked / not-interested
+pseudo-groups, shared dashboard + overlay), `groupCounts.js` (`countNewPerGroup` — the
+"N new since last opened" group badges, shared dashboard + overlay), `channelHealth.js`
 (activity classification, `channels.html`), `groupEditor.js` (`groups.html`),
 `emojiPicker.js` + `emojiData.js` (group-icon picker, used by `groups.html` and the
 content script), `icons.js` (`window.YSTIcons.make` — inline-SVG card-action icons,
 dashboard + content script). All group create/rename/delete/icon/assignment lives in
 `groups.html`; the dashboard's group list is a read-only feed filter. "Not interested"
-is an extension-only per-video hide list (`storage.js`), filtered from the feed by
-default — YouTube has no API for its own equivalent.
+is an extension-only per-video hide list (id list in `sync` + metadata map in `local`),
+filtered from the feed by default — YouTube has no API for its own equivalent. The
+dashboard/sidebar group list also carries two pseudo-groups (👍 Liked, ⊘ Not interested)
+that render the full stored lists, and per-group "N new" badges keyed on a
+`groupLastVisited` sync map.
 
 YouTube-DOM realities worth knowing before touching the content script are in
 `extension/STATUS.md` → "Совместимость с DOM YouTube". `extension/STATUS.md` is otherwise the

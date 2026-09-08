@@ -6,6 +6,7 @@ const SYNC_KEYS = {
   groups: "groups",
   watchedVideoIds: "watchedVideoIds",
   notInterestedVideoIds: "notInterestedVideoIds",
+  groupLastVisited: "groupLastVisited",
 };
 const LOCAL_KEYS = {
   subscriptionsCache: "subscriptionsCache",
@@ -49,7 +50,29 @@ export async function deleteGroup(groupId) {
   const groups = await getGroups();
   delete groups[groupId];
   await saveGroups(groups);
+  const visited = await getGroupLastVisited();
+  if (delete visited[groupId]) await saveGroupLastVisited(visited);
   return groups;
+}
+
+// Map { groupId | "__all__": ms timestamp } — when the user last opened each
+// group. Drives the "N new" badges (groupCounts.js). A group with no entry
+// shows no badge until it's opened once, which sets the baseline.
+export async function getGroupLastVisited() {
+  const { [SYNC_KEYS.groupLastVisited]: map } = await chrome.storage.sync.get(
+    SYNC_KEYS.groupLastVisited
+  );
+  return map || {};
+}
+
+async function saveGroupLastVisited(map) {
+  await chrome.storage.sync.set({ [SYNC_KEYS.groupLastVisited]: map });
+}
+
+export async function touchGroupVisited(groupKey) {
+  const map = await getGroupLastVisited();
+  map[groupKey] = Date.now();
+  await saveGroupLastVisited(map);
 }
 
 export async function getWatchedVideoIds() {

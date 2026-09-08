@@ -50,6 +50,19 @@ button:hover { background: #3f3f3f; }
   text-overflow: ellipsis;
 }
 #groupList li:hover, #groupList li.active { background: #272727; }
+.new-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #3ea6ff;
+  color: #0f0f0f;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  vertical-align: 1px;
+}
 
 .groups-panel .hint { font-size: 12px; color: #aaa; margin: 8px 0 0; }
 

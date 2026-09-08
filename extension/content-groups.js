@@ -22,6 +22,7 @@ const isPseudoKey = (key) => key === LIKED_KEY || key === NI_KEY;
 let activeGroupKey = null;
 
 const { applyFilters, hydrateVideoList } = window.YSTFeed;
+const { countNewPerGroup } = window.YSTGroupCounts;
 const { openEmojiPicker } = window.YSTEmoji;
 const { make: makeIcon } = window.YSTIcons;
 
@@ -31,7 +32,21 @@ const DEFAULT_GROUP_ICON = "📁";
 const warn = (...a) => console.warn("[YST]", ...a);
 
 function getSyncData() {
-  return chrome.storage.sync.get(["groups", "watchedVideoIds", "notInterestedVideoIds"]);
+  return chrome.storage.sync.get([
+    "groups",
+    "watchedVideoIds",
+    "notInterestedVideoIds",
+    "groupLastVisited",
+  ]);
+}
+
+// "N new since last opened" bookkeeping for the group badges — written straight
+// to sync like markWatched(); storage.onChanged re-renders the sidebar.
+async function touchGroupVisited(groupKey) {
+  const { groupLastVisited } = await chrome.storage.sync.get("groupLastVisited");
+  const map = groupLastVisited || {};
+  map[groupKey] = Date.now();
+  await chrome.storage.sync.set({ groupLastVisited: map });
 }
 
 // storage.js is an ES module the dashboard imports; the content script writes
@@ -133,11 +148,18 @@ async function renderSidebar() {
   if (!sidebarDirty) return;
   sidebarDirty = false;
 
-  const [{ groups, notInterestedVideoIds }, { likedVideos }] = await Promise.all([
-    getSyncData(),
-    chrome.storage.local.get("likedVideos"),
-  ]);
+  const [
+    { groups, watchedVideoIds, notInterestedVideoIds, groupLastVisited },
+    { subscriptionsCache, videosCache, likedVideos },
+  ] = await Promise.all([getSyncData(), getLocalData()]);
   const entries = Object.entries(groups || {});
+
+  const newCounts = countNewPerGroup(groups || {}, videosCache || {}, {
+    lastVisited: groupLastVisited || {},
+    watchedIds: new Set(watchedVideoIds || []),
+    notInterestedIds: new Set(notInterestedVideoIds || []),
+    allChannelIds: Object.keys(subscriptionsCache || {}),
+  });
 
   // replaceChildren, not innerHTML: YouTube serves a Trusted-Types CSP and
   // `el.innerHTML = ""` throws under it. (Isolated worlds are exempt today, but
@@ -148,17 +170,17 @@ async function renderSidebar() {
   title.textContent = "My groups";
   section.appendChild(title);
 
-  section.appendChild(buildGroupRow(ALL_KEY, "All subscriptions", null, ""));
+  section.appendChild(buildGroupRow(ALL_KEY, "All subscriptions", null, "", newCounts[ALL_KEY]));
   for (const [groupId, group] of entries) {
     section.appendChild(
-      buildGroupRow(groupId, group.name, group.channelIds.length, group.icon)
+      buildGroupRow(groupId, group.name, group.channelIds.length, group.icon, newCounts[groupId])
     );
   }
   section.appendChild(
-    buildGroupRow(LIKED_KEY, PSEUDO_LABELS[LIKED_KEY], Object.keys(likedVideos || {}).length, "")
+    buildGroupRow(LIKED_KEY, PSEUDO_LABELS[LIKED_KEY], Object.keys(likedVideos || {}).length, "", 0)
   );
   section.appendChild(
-    buildGroupRow(NI_KEY, PSEUDO_LABELS[NI_KEY], (notInterestedVideoIds || []).length, "")
+    buildGroupRow(NI_KEY, PSEUDO_LABELS[NI_KEY], (notInterestedVideoIds || []).length, "", 0)
   );
 
   const manageLink = document.createElement("div");
@@ -176,7 +198,7 @@ function refreshSidebar() {
   renderSidebar().catch((e) => warn("renderSidebar failed", e));
 }
 
-function buildGroupRow(key, label, count, icon) {
+function buildGroupRow(key, label, count, icon, newCount = 0) {
   const row = document.createElement("div");
   row.className = "yst-group-row" + (key === activeGroupKey ? " active" : "");
   row.dataset.groupKey = key;
@@ -207,12 +229,21 @@ function buildGroupRow(key, label, count, icon) {
   main.appendChild(name);
   row.appendChild(main);
 
+  const trailing = document.createElement("span");
+  trailing.className = "yst-group-trailing";
+  if (newCount > 0) {
+    const badge = document.createElement("span");
+    badge.className = "yst-new-badge";
+    badge.textContent = newCount > 99 ? "99+" : newCount;
+    trailing.appendChild(badge);
+  }
   if (count !== null) {
     const countEl = document.createElement("span");
     countEl.className = "count";
     countEl.textContent = count;
-    row.appendChild(countEl);
+    trailing.appendChild(countEl);
   }
+  if (trailing.childNodes.length) row.appendChild(trailing);
 
   row.addEventListener("click", () => toggleOverlay(key));
   return row;
@@ -286,7 +317,8 @@ async function toggleOverlay(groupKey) {
     return;
   }
   activeGroupKey = groupKey;
-  refreshSidebar(); // active-row highlight changed
+  if (!isPseudoKey(groupKey)) await touchGroupVisited(groupKey); // clears its "N new" badge
+  refreshSidebar(); // active-row highlight + badge changed
   await renderOverlay();
 }
 
@@ -615,10 +647,16 @@ document.addEventListener("yt-navigate-finish", onNavigate);
 document.addEventListener("yt-navigate-start", () => getOverlay()?.remove());
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "sync" && (changes.groups || changes.notInterestedVideoIds)) {
-    refreshSidebar(); // rows or the "Not interested" count changed
+  if (
+    area === "sync" &&
+    (changes.groups ||
+      changes.notInterestedVideoIds ||
+      changes.watchedVideoIds ||
+      changes.groupLastVisited)
+  ) {
+    refreshSidebar(); // rows, counts or "N new" badges changed
   }
-  if (area === "local" && changes.likedVideos) {
-    refreshSidebar(); // a sync refreshed the liked list → update its count
+  if (area === "local" && (changes.likedVideos || changes.videosCache)) {
+    refreshSidebar(); // a sync refreshed the liked list / brought new videos
   }
 });

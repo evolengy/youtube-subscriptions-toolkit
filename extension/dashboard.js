@@ -2,6 +2,7 @@ import * as store from "./storage.js";
 
 // Plain <script>s in dashboard.html, ahead of this module.
 const { applyFilters, hydrateVideoList } = window.YSTFeed;
+const { countNewPerGroup, ALL_KEY } = window.YSTGroupCounts;
 const { make: makeIcon } = window.YSTIcons;
 
 const DEFAULT_GROUP_ICON = "📁";
@@ -19,6 +20,8 @@ let notInterestedIds = new Set();
 let notInterestedMeta = {};
 let likedVideos = {};
 let likedIds = new Set();
+let groupLastVisited = {};
+let newCounts = {};
 let activeGroupId = null;
 
 const el = (id) => document.getElementById(id);
@@ -38,6 +41,7 @@ async function loadState() {
     notInterestedIds,
     notInterestedMeta,
     likedVideos,
+    groupLastVisited,
   ] = await Promise.all([
     store.getSubscriptionsCache(),
     store.getVideosCache(),
@@ -46,8 +50,19 @@ async function loadState() {
     store.getNotInterestedVideoIds(),
     store.getNotInterestedVideos(),
     store.getLikedVideos(),
+    store.getGroupLastVisited(),
   ]);
   likedIds = new Set(Object.keys(likedVideos));
+  recomputeNewCounts();
+}
+
+function recomputeNewCounts() {
+  newCounts = countNewPerGroup(groups, videosByChannel, {
+    lastVisited: groupLastVisited,
+    watchedIds,
+    notInterestedIds,
+    allChannelIds: Object.keys(subscriptions),
+  });
 }
 
 // --- Auth -------------------------------------------------------------
@@ -115,31 +130,52 @@ function renderGroups() {
   const list = el("groupList");
   list.replaceChildren();
 
-  const selectRow = (id, label, isActive) => {
+  // countKey: which newCounts entry this row shows a badge for (null for the
+  // pseudo-groups, which have no "new" notion).
+  const selectRow = (id, label, isActive, countKey) => {
     const item = document.createElement("li");
     item.className = isActive ? "active" : "";
-    item.textContent = label;
-    item.addEventListener("click", () => {
+    item.append(label);
+
+    const n = countKey ? newCounts[countKey] ?? 0 : 0;
+    if (n > 0) {
+      const badge = document.createElement("span");
+      badge.className = "new-badge";
+      badge.textContent = n > 99 ? "99+" : n;
+      item.append(" ", badge);
+    }
+
+    item.addEventListener("click", async () => {
       activeGroupId = id;
+      if (countKey) {
+        await store.touchGroupVisited(countKey);
+        groupLastVisited = await store.getGroupLastVisited();
+        recomputeNewCounts();
+      }
       renderGroups();
       renderFeed();
     });
     return item;
   };
 
-  list.appendChild(selectRow(null, "All subscriptions", activeGroupId === null));
+  list.appendChild(selectRow(null, "All subscriptions", activeGroupId === null, ALL_KEY));
   for (const [groupId, group] of Object.entries(groups)) {
     const icon = group.icon || DEFAULT_GROUP_ICON;
     list.appendChild(
-      selectRow(groupId, `${icon} ${group.name} (${group.channelIds.length})`, groupId === activeGroupId)
+      selectRow(
+        groupId,
+        `${icon} ${group.name} (${group.channelIds.length})`,
+        groupId === activeGroupId,
+        groupId
+      )
     );
   }
 
   list.appendChild(
-    selectRow(LIKED_KEY, `👍 Liked (${likedIds.size})`, activeGroupId === LIKED_KEY)
+    selectRow(LIKED_KEY, `👍 Liked (${likedIds.size})`, activeGroupId === LIKED_KEY, null)
   );
   list.appendChild(
-    selectRow(NI_KEY, `⊘ Not interested (${notInterestedIds.size})`, activeGroupId === NI_KEY)
+    selectRow(NI_KEY, `⊘ Not interested (${notInterestedIds.size})`, activeGroupId === NI_KEY, null)
   );
 }
 
@@ -150,6 +186,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
       groups = g;
       const isPseudo = activeGroupId === LIKED_KEY || activeGroupId === NI_KEY;
       if (activeGroupId && !isPseudo && !groups[activeGroupId]) activeGroupId = null;
+      recomputeNewCounts();
       renderGroups();
       renderFeed();
     });
@@ -264,6 +301,8 @@ function renderVideoCard(video) {
   watchBtn.addEventListener("click", async () => {
     await store.markVideoWatched(video.videoId);
     watchedIds = await store.getWatchedVideoIds();
+    recomputeNewCounts();
+    renderGroups();
     renderFeed();
   });
 
@@ -278,6 +317,7 @@ function renderVideoCard(video) {
       store.getNotInterestedVideoIds(),
       store.getNotInterestedVideos(),
     ]);
+    recomputeNewCounts();
     renderGroups();
     renderFeed();
   });

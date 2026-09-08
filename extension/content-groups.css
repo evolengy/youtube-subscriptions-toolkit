@@ -96,10 +96,27 @@ html[dark] {
   cursor: pointer;
 }
 .yst-group-icon:hover { background: var(--yst-border); }
+.yst-group-trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
 .yst-group-row .count {
   color: var(--yst-text-secondary);
   font-size: 12px;
   font-weight: 400;
+}
+.yst-new-badge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--yst-accent);
+  color: var(--yst-canvas);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
 }
 .yst-manage-link {
   display: flex;
