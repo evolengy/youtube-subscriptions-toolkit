@@ -1,4 +1,5 @@
 import * as store from "./storage.js";
+import { toast } from "./toast.js";
 
 // channelHealth.js (plain <script>, loaded first) publishes this.
 const { buildChannelRows, countByStatus, relativeTime, STATUSES } = window.YSTHealth;
@@ -128,9 +129,11 @@ function buildRow(row) {
         subscriptions = await store.getSubscriptionsCache();
         renderChips();
         renderTable();
+        toast.success(`Unsubscribed from ${row.title}`);
       } catch (err) {
         button.disabled = false;
-        el("syncStatus").textContent = `Error: ${err.message}`;
+        console.error(err);
+        toast.error(err.message);
       }
     });
     actionTd.appendChild(button);
@@ -161,7 +164,8 @@ el("refreshBtn").addEventListener("click", async () => {
   try {
     await send({ type: "REFRESH_ALL" });
   } catch (err) {
-    el("syncStatus").textContent = `Error: ${err.message}`;
+    console.error(err);
+    toast.error(err.message);
   }
   el("refreshBtn").disabled = false;
   await loadAndRender();

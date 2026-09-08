@@ -1,4 +1,5 @@
 import { getEntries, clearLog, LOG_STORAGE_KEY } from "./logger.js";
+import { toast } from "./toast.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -34,6 +35,7 @@ async function render() {
 el("clearBtn").addEventListener("click", async () => {
   await clearLog();
   render();
+  toast.info("Log cleared");
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {

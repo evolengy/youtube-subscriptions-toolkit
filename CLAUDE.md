@@ -277,7 +277,10 @@ youtubeApi.test.mjs`), and `refreshAll`'s per-channel loop is `try`-wrapped so o
 channel's failure keeps its previous cached videos instead of aborting the whole sync.
 `storage.js` wraps `chrome.storage`. `logger.js` (ESM) is a 200-entry ring buffer in
 `chrome.storage.local` — `background.js` records each sync's outcome and its errors
-there (the MV3 worker's own console is ephemeral); surface is `logs.html`. The UI is
+there (the MV3 worker's own console is ephemeral); surface is `logs.html`. `toast.js`
+(ESM, self-injecting styles) is the shared ephemeral-notification widget — page action
+errors (`Refresh now`, sign-in, unsubscribe) surface as an auto-dismissing toast now,
+not as sticky text in the toolbar. The UI is
 five extension pages: `dashboard.html/js` (groups list, feed) plus `channels.html`
 (channel health table), `groups.html` (assign channels ↔ groups), `settings.html` (hide
 sections of YouTube's own left guide; feed blocklist; per-group notification opt-in) and

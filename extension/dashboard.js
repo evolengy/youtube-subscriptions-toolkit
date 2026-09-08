@@ -1,5 +1,6 @@
 import * as store from "./storage.js";
 import { getEntries as getLogEntries, LOG_STORAGE_KEY } from "./logger.js";
+import { toast } from "./toast.js";
 
 // Plain <script>s in dashboard.html, ahead of this module.
 const { applyFilters, hydrateVideoList } = window.YSTFeed;
@@ -113,11 +114,11 @@ el("signInBtn").addEventListener("click", async () => {
   el("syncStatus").textContent = "Signing in...";
   try {
     await send({ type: "SIGN_IN" });
-    el("syncStatus").textContent = "";
   } catch (err) {
     console.error(err);
-    el("syncStatus").textContent = `Error: ${err.message}`;
+    toast.error(err.message);
   }
+  el("syncStatus").textContent = "";
   await refreshAuthUI();
 });
 
@@ -130,10 +131,10 @@ el("refreshBtn").addEventListener("click", async () => {
   el("syncStatus").textContent = "Refreshing...";
   try {
     await send({ type: "REFRESH_ALL" });
-    el("syncStatus").textContent = "";
   } catch (err) {
     console.error(err);
-    el("syncStatus").textContent = `Error: ${err.message}`;
+    toast.error(err.message);
+    renderSyncStatus();
     return;
   }
   await loadAndRender();
