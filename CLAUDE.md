@@ -271,7 +271,10 @@ attached property alone doesn't hold against `IScrollInfo`). Each consumer suppl
 message router; its sync also fires per-group "new video" desktop notifications (opt-in
 via `groups[id].notify`, set on `settings.html`; diff logic in the ESM module
 `groupNotify.js`, `node --test groupNotify.test.mjs`); `youtubeApi.js` wraps the Data API using `chrome.identity.getAuthToken` (one
-`https://www.googleapis.com/auth/youtube` token for everything, no refresh mechanism);
+`https://www.googleapis.com/auth/youtube` token for everything, no refresh mechanism).
+`apiFetch` retries transient 5xx/429 (not 4xx) with exponential backoff (`node --test
+youtubeApi.test.mjs`), and `refreshAll`'s per-channel loop is `try`-wrapped so one
+channel's failure keeps its previous cached videos instead of aborting the whole sync.
 `storage.js` wraps `chrome.storage`. The UI is four extension pages: `dashboard.html/js`
 (groups list, feed) plus `channels.html` (channel health table), `groups.html`
 (assign channels ↔ groups) and `settings.html` (hide sections of YouTube's own left

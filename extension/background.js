@@ -120,10 +120,17 @@ async function refreshAll() {
   const videosCache = {};
   for (const [channelId, sub] of Object.entries(subscriptionsCache)) {
     if (sub.dead || !sub.uploadsPlaylistId) continue;
-    const videoIds = await api.fetchRecentUploadIds(token, sub.uploadsPlaylistId, VIDEOS_PER_CHANNEL);
-    if (videoIds.length === 0) continue;
-    const videos = await api.fetchVideosDetails(token, videoIds);
-    videosCache[channelId] = videos;
+    try {
+      const videoIds = await api.fetchRecentUploadIds(token, sub.uploadsPlaylistId, VIDEOS_PER_CHANNEL);
+      if (videoIds.length === 0) continue;
+      videosCache[channelId] = await api.fetchVideosDetails(token, videoIds);
+    } catch (err) {
+      // One channel failing (transient API error that outlasted the retries,
+      // or a per-channel 403) must not discard the whole sync. Keep whatever we
+      // had for this channel and move on.
+      console.error("[YST] refresh failed for channel", channelId, err);
+      if (previousVideosCache[channelId]) videosCache[channelId] = previousVideosCache[channelId];
+    }
   }
   await store.saveVideosCache(videosCache);
 

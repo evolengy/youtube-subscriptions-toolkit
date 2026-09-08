@@ -6,6 +6,18 @@
 
 const API_BASE = "https://www.googleapis.com/youtube/v3";
 
+// YouTube Data API blips with transient 5xx (and occasionally 429) — a single
+// failing request would otherwise abort a whole sync. Retry those a couple of
+// times with exponential backoff. 4xx (400/401/403 quota/404) are real and not
+// retried.
+const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_ATTEMPTS = 3;
+
+let sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export function __setSleepForTests(fn) {
+  sleep = fn;
+}
+
 export async function getAuthToken({ interactive = false } = {}) {
   try {
     const token = await chrome.identity.getAuthToken({ interactive });
@@ -28,16 +40,31 @@ async function apiFetch(path, { params = {}, method = "GET", token } = {}) {
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null) url.searchParams.set(key, value);
   }
-  const res = await fetch(url, {
-    method,
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) {
+
+  let lastError;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, { method, headers: { Authorization: `Bearer ${token}` } });
+    } catch (err) {
+      lastError = err; // network error — retryable
+      if (attempt === MAX_ATTEMPTS) throw err;
+      await sleep(400 * 2 ** (attempt - 1));
+      continue;
+    }
+
+    if (res.ok) {
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
     const body = await res.text().catch(() => "");
-    throw new Error(`YouTube API ${path} failed: ${res.status} ${body}`);
+    const error = new Error(`YouTube API ${path} failed: ${res.status} ${body}`);
+    if (!RETRY_STATUSES.has(res.status) || attempt === MAX_ATTEMPTS) throw error;
+    lastError = error;
+    await sleep(400 * 2 ** (attempt - 1));
   }
-  if (res.status === 204) return null;
-  return res.json();
+  throw lastError;
 }
 
 // Fetches every page of the caller's subscriptions.
