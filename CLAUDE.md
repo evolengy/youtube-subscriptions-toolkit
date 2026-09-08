@@ -270,10 +270,11 @@ attached property alone doesn't hold against `IScrollInfo`). Each consumer suppl
 `background.js` (MV3 service worker) owns a `chrome.alarms` refresh loop (45 min) and a
 message router; `youtubeApi.js` wraps the Data API using `chrome.identity.getAuthToken` (one
 `https://www.googleapis.com/auth/youtube` token for everything, no refresh mechanism);
-`storage.js` wraps `chrome.storage`. The UI is three extension pages: `dashboard.html/js`
-(groups list, feed) plus `channels.html` (channel health table) and `groups.html`
-(assign channels ↔ groups), the latter two opened from the dashboard via
-`chrome.tabs.create`. The single content script `content-groups.js` (matched to all of
+`storage.js` wraps `chrome.storage`. The UI is four extension pages: `dashboard.html/js`
+(groups list, feed) plus `channels.html` (channel health table), `groups.html`
+(assign channels ↔ groups) and `settings.html` (hide sections of YouTube's own left
+guide), the latter three opened from the dashboard via `chrome.tabs.create`
+(`settings.html`'s button is always shown — it needs no auth). The single content script `content-groups.js` (matched to all of
 `youtube.com/*`, so it survives SPA navigation) injects a "My groups" section + grouped-feed
 overlay into YouTube's sidebar **and** the channel-country badge on watch pages — it is the
 fragile part the desktop client exists to avoid.
@@ -282,7 +283,9 @@ Pure, `node --test`-covered logic modules (`window.YST*` globals, loaded by plai
 before the page's ES module; content-script ones also listed in the manifest `js` array):
 `feedFilter.js` (feed filter/sort + `hydrateVideoList` for the liked / not-interested
 pseudo-groups, shared dashboard + overlay), `groupCounts.js` (`countNewPerGroup` — the
-"N new since last opened" group badges, shared dashboard + overlay), `channelHealth.js`
+"N new since last opened" group badges, shared dashboard + overlay), `guideDeclutter.js`
+(`buildGuideCss` — CSS to hide chosen sections of YouTube's own left guide, driven by
+the `guideHidden` sync key; surface is `settings.html`), `channelHealth.js`
 (activity classification, `channels.html`), `groupEditor.js` (`groups.html`),
 `emojiPicker.js` + `emojiData.js` (group-icon picker, used by `groups.html` and the
 content script), `icons.js` (`window.YSTIcons.make` — inline-SVG card-action icons,

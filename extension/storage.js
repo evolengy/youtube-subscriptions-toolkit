@@ -7,6 +7,7 @@ const SYNC_KEYS = {
   watchedVideoIds: "watchedVideoIds",
   notInterestedVideoIds: "notInterestedVideoIds",
   groupLastVisited: "groupLastVisited",
+  guideHidden: "guideHidden",
 };
 const LOCAL_KEYS = {
   subscriptionsCache: "subscriptionsCache",
@@ -157,6 +158,21 @@ export async function removeNotInterested(videoId) {
     delete map[videoId];
     await chrome.storage.local.set({ [LOCAL_KEYS.notInterestedVideos]: map });
   }
+}
+
+// Which sections of YouTube's own left guide to hide — { shorts, subChannels,
+// you, explore, moreFromYoutube, footer }, all default false. Consumed by
+// guideDeclutter.js; the surface is settings.html.
+export async function getGuideHidden() {
+  const { [SYNC_KEYS.guideHidden]: value } = await chrome.storage.sync.get(
+    SYNC_KEYS.guideHidden
+  );
+  return value || {};
+}
+
+export async function setGuideHidden(patch) {
+  const current = await getGuideHidden();
+  await chrome.storage.sync.set({ [SYNC_KEYS.guideHidden]: { ...current, ...patch } });
 }
 
 export async function getSubscriptionsCache() {

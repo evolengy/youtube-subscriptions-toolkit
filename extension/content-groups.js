@@ -23,6 +23,7 @@ let activeGroupKey = null;
 
 const { applyFilters, hydrateVideoList } = window.YSTFeed;
 const { countNewPerGroup } = window.YSTGroupCounts;
+const { buildGuideCss } = window.YSTDeclutter;
 const { openEmojiPicker } = window.YSTEmoji;
 const { make: makeIcon } = window.YSTIcons;
 
@@ -38,6 +39,21 @@ function getSyncData() {
     "notInterestedVideoIds",
     "groupLastVisited",
   ]);
+}
+
+// --- Guide declutter (hide chosen sections of YouTube's own left menu) ------
+
+// One <style> in <head>; CSS only, so Polymer never fights it and it survives
+// every SPA re-render. Rebuilt from the `guideHidden` setting on change.
+async function applyGuideDeclutter() {
+  const { guideHidden } = await chrome.storage.sync.get("guideHidden");
+  let style = document.getElementById("yst-guide-style");
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "yst-guide-style";
+    document.head.appendChild(style);
+  }
+  style.textContent = buildGuideCss(guideHidden || {});
 }
 
 // "N new since last opened" bookkeeping for the group badges — written straight
@@ -646,10 +662,14 @@ function onNavigate() {
 }
 
 onNavigate();
+applyGuideDeclutter().catch((e) => warn("applyGuideDeclutter failed", e));
 document.addEventListener("yt-navigate-finish", onNavigate);
 document.addEventListener("yt-navigate-start", () => getOverlay()?.remove());
 
 chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && changes.guideHidden) {
+    applyGuideDeclutter().catch((e) => warn("applyGuideDeclutter failed", e));
+  }
   if (
     area === "sync" &&
     (changes.groups ||

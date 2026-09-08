@@ -89,6 +89,7 @@ async function refreshAuthUI() {
 const openPage = (file) => () => chrome.tabs.create({ url: chrome.runtime.getURL(file) });
 el("manageChannelsBtn").addEventListener("click", openPage("channels.html"));
 el("editGroupsBtn").addEventListener("click", openPage("groups.html"));
+el("settingsBtn").addEventListener("click", openPage("settings.html")); // no auth needed
 
 el("signInBtn").addEventListener("click", async () => {
   el("syncStatus").textContent = "Signing in...";
