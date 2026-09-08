@@ -1,7 +1,9 @@
 import * as api from "./youtubeApi.js";
 import * as store from "./storage.js";
+import { collectNewVideosForNotify } from "./groupNotify.js";
 
 const DASHBOARD_URL = chrome.runtime.getURL("dashboard.html");
+const GROUP_NOTIFY_PREFIX = "yst-group:";
 const REFRESH_ALARM = "refresh-subscriptions";
 const VIDEOS_PER_CHANNEL = 15;
 
@@ -16,6 +18,14 @@ async function openOrFocusDashboard() {
 }
 
 chrome.action.onClicked.addListener(openOrFocusDashboard);
+
+// A "new videos in <group>" notification opens the dashboard filtered to it.
+chrome.notifications.onClicked.addListener((notificationId) => {
+  if (!notificationId.startsWith(GROUP_NOTIFY_PREFIX)) return;
+  const groupId = notificationId.slice(GROUP_NOTIFY_PREFIX.length);
+  chrome.tabs.create({ url: `${DASHBOARD_URL}#group=${encodeURIComponent(groupId)}` });
+  chrome.notifications.clear(notificationId);
+});
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(REFRESH_ALARM, { periodInMinutes: 45 });
@@ -85,6 +95,10 @@ async function refreshAll() {
   const token = await api.getAuthToken({ interactive: false });
   if (!token) return;
 
+  // Captured before we overwrite the caches — used to spot genuinely new videos.
+  const previousVideosCache = await store.getVideosCache();
+  const notifySince = await store.getLastSyncedAt();
+
   const subscriptions = await api.fetchAllSubscriptions(token);
   const channelIds = subscriptions.map((s) => s.channelId);
   const channelDetails = await api.fetchChannelsDetails(token, channelIds);
@@ -113,6 +127,14 @@ async function refreshAll() {
   }
   await store.saveVideosCache(videosCache);
 
+  // "New videos in <group>" notifications. Isolated — a bug here must not fail
+  // the sync.
+  try {
+    await notifyGroupsOfNewVideos(previousVideosCache, videosCache, notifySince);
+  } catch (err) {
+    console.error("[YST] group notifications failed", err);
+  }
+
   // Liked videos — a bonus signal for the feed ("liked = watched"). A failure
   // here must not fail the whole sync.
   try {
@@ -122,4 +144,39 @@ async function refreshAll() {
   }
 
   await store.markSynced();
+}
+
+async function notifyGroupsOfNewVideos(previousVideosCache, videosCache, since) {
+  const [groups, subscriptionsCache, watchedIds, notInterestedIds, blocklist] =
+    await Promise.all([
+      store.getGroups(),
+      store.getSubscriptionsCache(),
+      store.getWatchedVideoIds(),
+      store.getNotInterestedVideoIds(),
+      store.getFeedBlocklist(),
+    ]);
+
+  if (!since || !Object.values(groups).some((g) => g.notify)) return;
+
+  const perGroup = collectNewVideosForNotify(groups, previousVideosCache, videosCache, {
+    since,
+    watchedIds,
+    notInterestedIds,
+    mutedChannelIds: new Set(blocklist.mutedChannels),
+    blockedKeywords: blocklist.keywords,
+    channelTitleOf: (id) => subscriptionsCache[id]?.title ?? "",
+  });
+
+  const iconUrl = chrome.runtime.getURL("icons/icon128.png");
+  for (const [groupId, videos] of Object.entries(perGroup)) {
+    const group = groups[groupId];
+    const icon = group.icon || "📁";
+    const count = videos.length;
+    chrome.notifications.create(`${GROUP_NOTIFY_PREFIX}${groupId}`, {
+      type: "basic",
+      iconUrl,
+      title: `${icon} ${group.name}: ${count} new video${count > 1 ? "s" : ""}`,
+      message: videos.slice(0, 3).map((v) => v.title).join("\n"),
+    });
+  }
 }

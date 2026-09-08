@@ -268,7 +268,9 @@ attached property alone doesn't hold against `IScrollInfo`). Each consumer suppl
 ## extension architecture
 
 `background.js` (MV3 service worker) owns a `chrome.alarms` refresh loop (45 min) and a
-message router; `youtubeApi.js` wraps the Data API using `chrome.identity.getAuthToken` (one
+message router; its sync also fires per-group "new video" desktop notifications (opt-in
+via `groups[id].notify`, set on `settings.html`; diff logic in the ESM module
+`groupNotify.js`, `node --test groupNotify.test.mjs`); `youtubeApi.js` wraps the Data API using `chrome.identity.getAuthToken` (one
 `https://www.googleapis.com/auth/youtube` token for everything, no refresh mechanism);
 `storage.js` wraps `chrome.storage`. The UI is four extension pages: `dashboard.html/js`
 (groups list, feed) plus `channels.html` (channel health table), `groups.html`

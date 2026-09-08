@@ -3,7 +3,7 @@
   "name": "YouTube Subscriptions Toolkit",
   "version": "0.1.0",
   "description": "Group subscriptions into folders, filter/sort your feed, find dead channels, and see a channel's country.",
-  "permissions": ["storage", "alarms", "identity"],
+  "permissions": ["storage", "alarms", "identity", "notifications"],
   "host_permissions": ["https://www.googleapis.com/*"],
   "oauth2": {
     "client_id": "REPLACE_WITH_YOUR_OAUTH_CLIENT_ID.apps.googleusercontent.com",

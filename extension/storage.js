@@ -40,6 +40,16 @@ export async function upsertGroup(groupId, name, channelIds) {
   return groups;
 }
 
+// Per-group opt-in for "new video" desktop notifications (background.js).
+export async function setGroupNotify(groupId, notify) {
+  const groups = await getGroups();
+  if (!groups[groupId]) return groups;
+  if (notify) groups[groupId].notify = true;
+  else delete groups[groupId].notify;
+  await saveGroups(groups);
+  return groups;
+}
+
 export async function setGroupIcon(groupId, icon) {
   const groups = await getGroups();
   if (!groups[groupId]) return groups;

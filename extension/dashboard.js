@@ -126,8 +126,19 @@ el("refreshBtn").addEventListener("click", async () => {
   await loadAndRender();
 });
 
+let appliedGroupHash = false;
+
 async function loadAndRender() {
   await loadState();
+  // Opened from a "new videos in <group>" notification: #group=<id>.
+  if (!appliedGroupHash) {
+    appliedGroupHash = true;
+    const m = location.hash.match(/^#group=(.+)$/);
+    if (m) {
+      const id = decodeURIComponent(m[1]);
+      if (groups[id]) activeGroupId = id;
+    }
+  }
   renderSyncStatus();
   renderGroups();
   renderFeed();

@@ -83,12 +83,44 @@ el("blockKeywords").addEventListener("change", (e) => {
   store.setBlocklistKeywords(e.target.value.split("\n"));
 });
 
+// --- Group notifications -------------------------------------------------
+
+const DEFAULT_GROUP_ICON = "📁";
+
+async function renderNotifyGroups() {
+  const groups = await store.getGroups();
+  const entries = Object.entries(groups);
+  const list = el("notifyGroups");
+  list.replaceChildren();
+  el("noGroups").hidden = entries.length > 0;
+
+  for (const [groupId, group] of entries) {
+    const li = document.createElement("li");
+    const label = document.createElement("label");
+
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = Boolean(group.notify);
+    box.addEventListener("change", () => store.setGroupNotify(groupId, box.checked));
+
+    const text = document.createElement("span");
+    text.className = "t-title";
+    text.textContent = `${group.icon || DEFAULT_GROUP_ICON} ${group.name}`;
+
+    label.append(box, text);
+    li.append(label);
+    list.append(li);
+  }
+}
+
 // Reflect edits made from another tab / device.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "sync") return;
   if (changes.guideHidden) render();
   if (changes.feedBlocklist) renderBlocklist();
+  if (changes.groups) renderNotifyGroups();
 });
 
 render();
 renderBlocklist();
+renderNotifyGroups();
