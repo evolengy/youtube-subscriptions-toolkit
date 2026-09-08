@@ -110,7 +110,31 @@
     return filtered;
   }
 
-  const api = { parseIsoDuration, classifyVideoType, matchesQuery, applyFilters };
+  // Shape a stored id list (liked videos, "not interested") into feed-card
+  // objects applyFilters/renderers can consume. Liked and not-interested are
+  // persisted trimmed — { videoId, title, thumbnail, channelId, publishedAt } —
+  // so per id we merge: the recent-uploads cache entry (full: duration,
+  // viewCount, live status) underneath, the stored meta on top, then defaults
+  // for anything still missing. An id with neither becomes a bare placeholder
+  // (title = the id, a working /watch link) rather than being dropped.
+  function hydrateVideoList(ids, metaMap = {}, fallbackVideos = []) {
+    const byId = new Map(fallbackVideos.map((v) => [v.videoId, v]));
+    return ids.map((id) => {
+      const src = { ...(byId.get(id) || {}), ...(metaMap[id] || {}) };
+      return {
+        videoId: id,
+        title: src.title ?? id,
+        thumbnail: src.thumbnail ?? null,
+        channelId: src.channelId ?? null,
+        publishedAt: src.publishedAt ?? null,
+        duration: src.duration ?? null,
+        viewCount: src.viewCount ?? 0,
+        liveBroadcastContent: src.liveBroadcastContent ?? "none",
+      };
+    });
+  }
+
+  const api = { parseIsoDuration, classifyVideoType, matchesQuery, applyFilters, hydrateVideoList };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api; // node test
   root.YSTFeed = api; // browser (dashboard + content script)

@@ -12,6 +12,7 @@ const LOCAL_KEYS = {
   videosCache: "videosCache",
   lastSyncedAt: "lastSyncedAt",
   likedVideos: "likedVideos",
+  notInterestedVideos: "notInterestedVideos",
 };
 
 // chrome.storage.sync has an 8KB-per-item / ~100KB-total quota, so the watched
@@ -67,6 +68,12 @@ export async function markVideoWatched(videoId) {
 
 // "Not interested" — an extension-only list (YouTube has no API for its own).
 // Hidden from the feed by default; capped like the watched list.
+//
+// Two stores: the id list lives in sync (small, portable, and the source of
+// truth every feed render filters against), and a parallel metadata map lives
+// in local (title/thumbnail/etc — only needed to render the standalone list,
+// too big for the sync quota at 2000 entries). The map is kept in lockstep
+// with the trimmed id list so it can't outgrow it.
 export async function getNotInterestedVideoIds() {
   const { [SYNC_KEYS.notInterestedVideoIds]: ids } = await chrome.storage.sync.get(
     SYNC_KEYS.notInterestedVideoIds
@@ -74,17 +81,58 @@ export async function getNotInterestedVideoIds() {
   return new Set(ids || []);
 }
 
-export async function addNotInterested(videoId) {
+// Map { videoId: { videoId, title, thumbnail, channelId, publishedAt } }.
+export async function getNotInterestedVideos() {
+  const { [LOCAL_KEYS.notInterestedVideos]: map } = await chrome.storage.local.get(
+    LOCAL_KEYS.notInterestedVideos
+  );
+  return map || {};
+}
+
+function pickVideoMeta(video) {
+  return {
+    videoId: video.videoId,
+    title: video.title ?? null,
+    thumbnail: video.thumbnail ?? null,
+    channelId: video.channelId ?? null,
+    publishedAt: video.publishedAt ?? null,
+  };
+}
+
+// Drop map entries whose id is no longer in `keepIds` (e.g. trimmed off the cap).
+function pruneMetaMap(map, keepIds) {
+  const keep = new Set(keepIds);
+  const out = {};
+  for (const [id, value] of Object.entries(map)) if (keep.has(id)) out[id] = value;
+  return out;
+}
+
+// Accepts a full video object (preferred — populates the metadata map) or a
+// bare id (list-only, e.g. a legacy caller).
+export async function addNotInterested(video) {
+  const videoId = typeof video === "string" ? video : video.videoId;
   const ids = await getNotInterestedVideoIds();
   ids.add(videoId);
   const trimmed = Array.from(ids).slice(-MAX_WATCHED_IDS);
   await chrome.storage.sync.set({ [SYNC_KEYS.notInterestedVideoIds]: trimmed });
+
+  const map = await getNotInterestedVideos();
+  if (typeof video === "object" && video) map[videoId] = pickVideoMeta(video);
+  await chrome.storage.local.set({
+    [LOCAL_KEYS.notInterestedVideos]: pruneMetaMap(map, trimmed),
+  });
 }
 
 export async function removeNotInterested(videoId) {
   const ids = await getNotInterestedVideoIds();
   if (!ids.delete(videoId)) return;
   await chrome.storage.sync.set({ [SYNC_KEYS.notInterestedVideoIds]: Array.from(ids) });
+
+  const map = await getNotInterestedVideos();
+  if (map[videoId]) {
+    delete map[videoId];
+    await chrome.storage.local.set({ [LOCAL_KEYS.notInterestedVideos]: map });
+  }
 }
 
 export async function getSubscriptionsCache() {

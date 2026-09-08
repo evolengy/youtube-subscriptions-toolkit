@@ -13,9 +13,15 @@
 
 const MAX_WATCHED_IDS = 2000;
 const ALL_KEY = "__all__";
+// Pseudo-groups: stored video lists rather than channel sets (see feedFilter's
+// hydrateVideoList). Their sidebar rows have no icon picker.
+const LIKED_KEY = "__liked__";
+const NI_KEY = "__ni__";
+const PSEUDO_LABELS = { [LIKED_KEY]: "👍 Liked", [NI_KEY]: "⊘ Not interested" };
+const isPseudoKey = (key) => key === LIKED_KEY || key === NI_KEY;
 let activeGroupKey = null;
 
-const { applyFilters } = window.YSTFeed;
+const { applyFilters, hydrateVideoList } = window.YSTFeed;
 const { openEmojiPicker } = window.YSTEmoji;
 const { make: makeIcon } = window.YSTIcons;
 
@@ -41,7 +47,12 @@ async function setGroupIcon(groupId, icon) {
 }
 
 function getLocalData() {
-  return chrome.storage.local.get(["subscriptionsCache", "videosCache", "likedVideos"]);
+  return chrome.storage.local.get([
+    "subscriptionsCache",
+    "videosCache",
+    "likedVideos",
+    "notInterestedVideos",
+  ]);
 }
 
 async function markWatched(videoId) {
@@ -52,14 +63,34 @@ async function markWatched(videoId) {
   await chrome.storage.sync.set({ watchedVideoIds: trimmed });
 }
 
-async function toggleNotInterested(videoId, add) {
+// `video` is a full card object when adding (feeds the metadata map that backs
+// the standalone "Not interested" list), or a bare id when removing.
+async function toggleNotInterested(video, add) {
+  const videoId = typeof video === "string" ? video : video.videoId;
   const { notInterestedVideoIds } = await getSyncData();
   const ids = new Set(notInterestedVideoIds || []);
   if (add) ids.add(videoId);
   else ids.delete(videoId);
-  await chrome.storage.sync.set({
-    notInterestedVideoIds: Array.from(ids).slice(-MAX_WATCHED_IDS),
-  });
+  const trimmed = Array.from(ids).slice(-MAX_WATCHED_IDS);
+  await chrome.storage.sync.set({ notInterestedVideoIds: trimmed });
+
+  // Mirror into the local metadata map, kept in lockstep with the trimmed ids.
+  const { notInterestedVideos } = await chrome.storage.local.get("notInterestedVideos");
+  const map = notInterestedVideos || {};
+  if (add && typeof video === "object") {
+    map[videoId] = {
+      videoId,
+      title: video.title ?? null,
+      thumbnail: video.thumbnail ?? null,
+      channelId: video.channelId ?? null,
+      publishedAt: video.publishedAt ?? null,
+    };
+  } else {
+    delete map[videoId];
+  }
+  const keep = new Set(trimmed);
+  for (const id of Object.keys(map)) if (!keep.has(id)) delete map[id];
+  await chrome.storage.local.set({ notInterestedVideos: map });
 }
 
 // --- Sidebar -------------------------------------------------------------
@@ -102,7 +133,10 @@ async function renderSidebar() {
   if (!sidebarDirty) return;
   sidebarDirty = false;
 
-  const { groups } = await getSyncData();
+  const [{ groups, notInterestedVideoIds }, { likedVideos }] = await Promise.all([
+    getSyncData(),
+    chrome.storage.local.get("likedVideos"),
+  ]);
   const entries = Object.entries(groups || {});
 
   // replaceChildren, not innerHTML: YouTube serves a Trusted-Types CSP and
@@ -120,6 +154,12 @@ async function renderSidebar() {
       buildGroupRow(groupId, group.name, group.channelIds.length, group.icon)
     );
   }
+  section.appendChild(
+    buildGroupRow(LIKED_KEY, PSEUDO_LABELS[LIKED_KEY], Object.keys(likedVideos || {}).length, "")
+  );
+  section.appendChild(
+    buildGroupRow(NI_KEY, PSEUDO_LABELS[NI_KEY], (notInterestedVideoIds || []).length, "")
+  );
 
   const manageLink = document.createElement("div");
   manageLink.className = "yst-manage-link";
@@ -144,7 +184,7 @@ function buildGroupRow(key, label, count, icon) {
   const main = document.createElement("span");
   main.className = "yst-group-main";
 
-  if (key !== ALL_KEY) {
+  if (key !== ALL_KEY && !isPseudoKey(key)) {
     // Clickable icon — opens the picker instead of switching to the group.
     const iconEl = document.createElement("button");
     iconEl.type = "button";
@@ -253,8 +293,25 @@ async function toggleOverlay(groupKey) {
 async function getVisibleVideos(groupKey) {
   const [
     { groups, watchedVideoIds, notInterestedVideoIds },
-    { subscriptionsCache, videosCache, likedVideos },
+    { subscriptionsCache, videosCache, likedVideos, notInterestedVideos },
   ] = await Promise.all([getSyncData(), getLocalData()]);
+
+  const common = {
+    watchedIds: new Set(watchedVideoIds || []),
+    notInterestedIds: new Set(notInterestedVideoIds || []),
+    likedIds: new Set(Object.keys(likedVideos || {})),
+    channelTitleOf: (id) => (subscriptionsCache || {})[id]?.title ?? "",
+  };
+
+  if (isPseudoKey(groupKey)) {
+    const flat = [];
+    for (const list of Object.values(videosCache || {})) flat.push(...list);
+    const [ids, metaMap] =
+      groupKey === LIKED_KEY
+        ? [Object.keys(likedVideos || {}), likedVideos || {}]
+        : [notInterestedVideoIds || [], notInterestedVideos || {}];
+    return { ...common, videos: hydrateVideoList(ids, metaMap, flat) };
+  }
 
   const channelIds =
     groupKey === ALL_KEY
@@ -265,13 +322,7 @@ async function getVisibleVideos(groupKey) {
   for (const channelId of channelIds) {
     for (const video of (videosCache || {})[channelId] ?? []) videos.push(video);
   }
-  return {
-    videos,
-    watchedIds: new Set(watchedVideoIds || []),
-    notInterestedIds: new Set(notInterestedVideoIds || []),
-    likedIds: new Set(Object.keys(likedVideos || {})),
-    channelTitleOf: (id) => (subscriptionsCache || {})[id]?.title ?? "",
-  };
+  return { ...common, videos };
 }
 
 async function renderOverlay() {
@@ -284,7 +335,8 @@ async function renderOverlay() {
   }
 
   const { groups } = await getSyncData();
-  const group = activeGroupKey === ALL_KEY ? null : groups?.[activeGroupKey];
+  const isPseudo = isPseudoKey(activeGroupKey);
+  const group = activeGroupKey === ALL_KEY || isPseudo ? null : groups?.[activeGroupKey];
   const groupLabel = activeGroupKey === ALL_KEY ? "All subscriptions" : group?.name ?? "";
 
   overlay.replaceChildren(); // not innerHTML — Trusted-Types CSP, see renderSidebar
@@ -292,7 +344,11 @@ async function renderOverlay() {
   header.className = "yst-overlay-header";
 
   const heading = document.createElement("h2");
-  heading.textContent = group ? `${group.icon || DEFAULT_GROUP_ICON} ${groupLabel}` : groupLabel;
+  heading.textContent = isPseudo
+    ? PSEUDO_LABELS[activeGroupKey]
+    : group
+    ? `${group.icon || DEFAULT_GROUP_ICON} ${groupLabel}`
+    : groupLabel;
   header.appendChild(heading);
 
   const typeSelect = buildSelect([
@@ -370,11 +426,12 @@ async function renderOverlay() {
       query: searchInput.value,
       channelTitleOf,
       notInterestedIds,
-      showNotInterested: showNiCheckbox.checked,
+      showNotInterested: activeGroupKey === NI_KEY || showNiCheckbox.checked,
       likedIds,
       likedAsWatched,
     });
 
+    const pseudo = isPseudoKey(activeGroupKey);
     feed.replaceChildren();
     for (const video of filtered) {
       feed.appendChild(
@@ -382,6 +439,7 @@ async function renderOverlay() {
           watched: watchedIds.has(video.videoId) || (video.liked && likedAsWatched),
           notInterested: notInterestedIds.has(video.videoId),
           liked: video.liked,
+          pseudo,
           onChange: rerenderFeed,
         })
       );
@@ -412,10 +470,13 @@ function iconButton(name, label) {
   return btn;
 }
 
-function buildVideoCard(video, { watched, notInterested, liked, onChange }) {
+function buildVideoCard(video, { watched, notInterested, liked, pseudo, onChange }) {
   const card = document.createElement("div");
+  // See dashboard.js: no whole-grid dimming inside a pseudo-group.
   card.className =
-    "yst-video-card" + (watched ? " watched" : "") + (notInterested ? " not-interested" : "");
+    "yst-video-card" +
+    (watched && !pseudo ? " watched" : "") +
+    (notInterested && !pseudo ? " not-interested" : "");
 
   const link = document.createElement("a");
   link.href = `/watch?v=${video.videoId}`;
@@ -430,7 +491,7 @@ function buildVideoCard(video, { watched, notInterested, liked, onChange }) {
   title.textContent = video.title;
   const meta = document.createElement("div");
   meta.className = "meta";
-  meta.append(`${video.type} · ${video.viewCount.toLocaleString()} views`);
+  meta.append(`${video.type} · ${(video.viewCount ?? 0).toLocaleString()} views`);
   if (liked) {
     const wrap = document.createElement("span");
     wrap.className = "yst-liked-mark";
@@ -454,7 +515,7 @@ function buildVideoCard(video, { watched, notInterested, liked, onChange }) {
     notInterested ? "Restore" : "Not interested"
   );
   niBtn.addEventListener("click", async () => {
-    await toggleNotInterested(video.videoId, !notInterested);
+    await toggleNotInterested(notInterested ? video.videoId : video, !notInterested);
     onChange();
   });
 
@@ -554,7 +615,10 @@ document.addEventListener("yt-navigate-finish", onNavigate);
 document.addEventListener("yt-navigate-start", () => getOverlay()?.remove());
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "sync" && changes.groups) {
-    refreshSidebar();
+  if (area === "sync" && (changes.groups || changes.notInterestedVideoIds)) {
+    refreshSidebar(); // rows or the "Not interested" count changed
+  }
+  if (area === "local" && changes.likedVideos) {
+    refreshSidebar(); // a sync refreshed the liked list → update its count
   }
 });

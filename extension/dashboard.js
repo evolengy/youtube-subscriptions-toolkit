@@ -1,16 +1,23 @@
 import * as store from "./storage.js";
 
 // Plain <script>s in dashboard.html, ahead of this module.
-const { applyFilters } = window.YSTFeed;
+const { applyFilters, hydrateVideoList } = window.YSTFeed;
 const { make: makeIcon } = window.YSTIcons;
 
 const DEFAULT_GROUP_ICON = "📁";
+
+// Pseudo-groups: not channel sets but stored video lists (the full liked and
+// "not interested" lists, which reach past the recent-uploads cache window).
+const LIKED_KEY = "__liked__";
+const NI_KEY = "__ni__";
 
 let subscriptions = {};
 let videosByChannel = {};
 let groups = {};
 let watchedIds = new Set();
 let notInterestedIds = new Set();
+let notInterestedMeta = {};
+let likedVideos = {};
 let likedIds = new Set();
 let activeGroupId = null;
 
@@ -23,16 +30,23 @@ async function send(message) {
 }
 
 async function loadState() {
-  let likedVideos;
-  [subscriptions, videosByChannel, groups, watchedIds, notInterestedIds, likedVideos] =
-    await Promise.all([
-      store.getSubscriptionsCache(),
-      store.getVideosCache(),
-      store.getGroups(),
-      store.getWatchedVideoIds(),
-      store.getNotInterestedVideoIds(),
-      store.getLikedVideos(),
-    ]);
+  [
+    subscriptions,
+    videosByChannel,
+    groups,
+    watchedIds,
+    notInterestedIds,
+    notInterestedMeta,
+    likedVideos,
+  ] = await Promise.all([
+    store.getSubscriptionsCache(),
+    store.getVideosCache(),
+    store.getGroups(),
+    store.getWatchedVideoIds(),
+    store.getNotInterestedVideoIds(),
+    store.getNotInterestedVideos(),
+    store.getLikedVideos(),
+  ]);
   likedIds = new Set(Object.keys(likedVideos));
 }
 
@@ -120,6 +134,13 @@ function renderGroups() {
       selectRow(groupId, `${icon} ${group.name} (${group.channelIds.length})`, groupId === activeGroupId)
     );
   }
+
+  list.appendChild(
+    selectRow(LIKED_KEY, `👍 Liked (${likedIds.size})`, activeGroupId === LIKED_KEY)
+  );
+  list.appendChild(
+    selectRow(NI_KEY, `⊘ Not interested (${notInterestedIds.size})`, activeGroupId === NI_KEY)
+  );
 }
 
 // A group edited in groups.html / the YouTube sidebar should refresh this list.
@@ -127,7 +148,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "sync" && changes.groups) {
     store.getGroups().then((g) => {
       groups = g;
-      if (activeGroupId && !groups[activeGroupId]) activeGroupId = null;
+      const isPseudo = activeGroupId === LIKED_KEY || activeGroupId === NI_KEY;
+      if (activeGroupId && !isPseudo && !groups[activeGroupId]) activeGroupId = null;
       renderGroups();
       renderFeed();
     });
@@ -141,10 +163,21 @@ function getVisibleChannelIds() {
   return groups[activeGroupId]?.channelIds ?? [];
 }
 
+function flattenCache() {
+  const all = [];
+  for (const list of Object.values(videosByChannel)) all.push(...list);
+  return all;
+}
+
 function collectVideos() {
-  const channelIds = getVisibleChannelIds();
+  if (activeGroupId === LIKED_KEY) {
+    return hydrateVideoList(Object.keys(likedVideos), likedVideos, flattenCache());
+  }
+  if (activeGroupId === NI_KEY) {
+    return hydrateVideoList([...notInterestedIds], notInterestedMeta, flattenCache());
+  }
   const videos = [];
-  for (const channelId of channelIds) {
+  for (const channelId of getVisibleChannelIds()) {
     for (const video of videosByChannel[channelId] ?? []) {
       videos.push(video);
     }
@@ -166,7 +199,7 @@ function renderFeed() {
     query: el("searchQuery").value,
     channelTitleOf: (channelId) => subscriptions[channelId]?.title ?? "",
     notInterestedIds,
-    showNotInterested: el("showNotInterested").checked,
+    showNotInterested: activeGroupId === NI_KEY || el("showNotInterested").checked,
     likedIds,
     likedAsWatched: el("likedAsWatched").checked,
   });
@@ -189,10 +222,15 @@ function renderVideoCard(video) {
   const liked = video.liked;
   const watched = watchedIds.has(video.videoId) || (liked && el("likedAsWatched").checked);
   const notInterested = notInterestedIds.has(video.videoId);
+  // Inside a pseudo-group every card is watched/liked/not-interested by
+  // definition — dimming the whole grid conveys nothing, so skip it there.
+  const pseudoView = activeGroupId === LIKED_KEY || activeGroupId === NI_KEY;
 
   const card = document.createElement("div");
   card.className =
-    "video-card" + (watched ? " watched" : "") + (notInterested ? " not-interested" : "");
+    "video-card" +
+    (watched && !pseudoView ? " watched" : "") +
+    (notInterested && !pseudoView ? " not-interested" : "");
 
   const link = document.createElement("a");
   link.href = `https://www.youtube.com/watch?v=${video.videoId}`;
@@ -207,7 +245,7 @@ function renderVideoCard(video) {
   title.textContent = video.title;
   const meta = document.createElement("div");
   meta.className = "meta";
-  meta.append(`${video.type} · ${video.viewCount.toLocaleString()} views`);
+  meta.append(`${video.type} · ${(video.viewCount ?? 0).toLocaleString()} views`);
   if (liked) {
     const thumb = makeIcon("thumb", { size: 14 });
     thumb.classList.add("liked-mark");
@@ -235,8 +273,12 @@ function renderVideoCard(video) {
   );
   niBtn.addEventListener("click", async () => {
     if (notInterested) await store.removeNotInterested(video.videoId);
-    else await store.addNotInterested(video.videoId);
-    notInterestedIds = await store.getNotInterestedVideoIds();
+    else await store.addNotInterested(video);
+    [notInterestedIds, notInterestedMeta] = await Promise.all([
+      store.getNotInterestedVideoIds(),
+      store.getNotInterestedVideos(),
+    ]);
+    renderGroups();
     renderFeed();
   });
 

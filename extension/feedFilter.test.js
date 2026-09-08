@@ -1,7 +1,12 @@
 // Run: node --test feedFilter.test.js
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseIsoDuration, classifyVideoType, applyFilters } = require("./feedFilter.js");
+const {
+  parseIsoDuration,
+  classifyVideoType,
+  applyFilters,
+  hydrateVideoList,
+} = require("./feedFilter.js");
 
 test("parseIsoDuration", () => {
   assert.equal(parseIsoDuration("PT4M13S"), 253);
@@ -111,6 +116,37 @@ test("applyFilters: not-interested is hidden by default, shown on request", () =
     applyFilters(videos, { notInterestedIds, showNotInterested: true }).map((v) => v.videoId).sort(),
     ["a", "b"]
   );
+});
+
+test("hydrateVideoList: meta wins, cache fills gaps, unknowns get a placeholder", () => {
+  const meta = {
+    a: { videoId: "a", title: "Liked A", thumbnail: "ta", channelId: "ca", publishedAt: "2024-01-01" },
+  };
+  const cache = [
+    { videoId: "a", title: "stale A", duration: "PT5M", viewCount: 42, liveBroadcastContent: "none" },
+    { videoId: "b", title: "Cached B", thumbnail: "tb", channelId: "cb", publishedAt: "2024-02-01", duration: "PT9M", viewCount: 7 },
+  ];
+  const out = hydrateVideoList(["a", "b", "c"], meta, cache);
+
+  assert.deepEqual(out.map((v) => v.videoId), ["a", "b", "c"]);
+  // meta on top of the cache entry
+  assert.equal(out[0].title, "Liked A");
+  assert.equal(out[0].duration, "PT5M");
+  assert.equal(out[0].viewCount, 42);
+  // cache-only id
+  assert.equal(out[1].title, "Cached B");
+  // neither: placeholder
+  assert.equal(out[2].title, "c");
+  assert.equal(out[2].thumbnail, null);
+  assert.equal(out[2].viewCount, 0);
+  assert.equal(out[2].duration, null);
+});
+
+test("hydrateVideoList: output flows through applyFilters", () => {
+  const out = applyFilters(hydrateVideoList(["x"], {}, []), { likedIds: new Set(["x"]) });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].liked, true);
+  assert.equal(out[0].type, "short"); // no duration/live info → falls to the <=60s branch
 });
 
 test("applyFilters: liked flag on rows; liked counts as watched only when opted in", () => {
