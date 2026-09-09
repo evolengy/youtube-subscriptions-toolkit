@@ -1,5 +1,8 @@
 # YouTube Subscriptions Toolkit
 
+[![extension](https://github.com/evolengy/youtube-subscriptions-toolkit/actions/workflows/extension.yml/badge.svg)](https://github.com/evolengy/youtube-subscriptions-toolkit/actions/workflows/extension.yml)
+[![desktop-client](https://github.com/evolengy/youtube-subscriptions-toolkit/actions/workflows/desktop-client.yml/badge.svg)](https://github.com/evolengy/youtube-subscriptions-toolkit/actions/workflows/desktop-client.yml)
+
 PocketTube-style subscription management on top of the official **YouTube Data API v3** —
 group your subscriptions into folders, filter and sort the resulting feed, spot dead
 channels, mute noise, and get notified about new uploads in the groups you care about.
