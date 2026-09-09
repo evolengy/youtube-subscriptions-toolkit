@@ -16,10 +16,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       # Pure-logic modules, Node's built-in runner, no dependencies to install.
-      - run: node --test
+      # spec reporter = one readable ✔/✖ line per test in the job log.
+      - run: node --test --test-reporter=spec
         working-directory: extension
