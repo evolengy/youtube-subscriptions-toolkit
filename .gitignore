@@ -2,16 +2,25 @@
 bin/
 obj/
 *.user
+TestResults/
+
+# Visual Studio / Rider
+.vs/
+*.suo
+*.userprefs
+.idea/
 
 # OS
 Thumbs.db
 .DS_Store
-
-# IDE
-.idea/
 
 # worktrees
 .worktrees/
 
 # subagent-driven-development scratch workspace
 .superpowers/
+
+# Local OAuth credentials — never commit. Copy the *.example.json and fill in
+# your own Google Cloud client. See the README.
+credentials.json
+**/credentials.json

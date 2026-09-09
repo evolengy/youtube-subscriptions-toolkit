@@ -23,6 +23,15 @@
     </Content>
   </ItemGroup>
 
+  <!-- Template for the per-user OAuth credentials. App.OnStartup seeds
+       %AppData%\YouTubeSubscriptionsToolkit\credentials.json from this on first
+       run when none exists. The real credentials.json is git-ignored. -->
+  <ItemGroup>
+    <Content Include="credentials.example.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <!-- Also embedded as a resource so MainWindow's Icon="/Assets/app.ico" (title
        bar + Alt-Tab) resolves it. The tray icon is pulled off the .exe instead,
        via the <ApplicationIcon> stamp above. -->

@@ -81,10 +81,16 @@ dotnet test --filter "DisplayName~ParsesSingleFullPage"
 
 ### extension
 
-No build. Load `extension/` as an unpacked extension in Chrome. `manifest.json` contains a real
-OAuth `client_id`; the desktop client's `App.xaml.cs` contains a real client id **and secret** —
-both are committed intentionally (Google installed-app credentials are "not treated as a secret"),
-so don't treat their presence as a leak to fix.
+No build. Load `extension/` as an unpacked extension in Chrome. OAuth credentials are **not**
+in the repo — each user brings their own Google Cloud project (quota is per-project and the
+consent screen stays in "Testing"). `extension/manifest.json` ships a `REPLACE_WITH_YOUR_…`
+placeholder for `oauth2.client_id`; the desktop client reads `clientId` / `clientSecret` from
+`%AppData%\YouTubeSubscriptionsToolkit\credentials.json` (git-ignored, seeded from
+`credentials.example.json`, loaded by `Auth/GoogleCredentials.cs` — `App.OnStartup` shows a
+setup dialog and exits when it's missing or still a template). Setup steps are in the two
+READMEs. Historic commits had real installed-app credentials; they were scrubbed with
+`git filter-repo` before the first push (Google treats them as non-secret, but they were dead
+weight in a public repo).
 
 ## desktop-client architecture
 

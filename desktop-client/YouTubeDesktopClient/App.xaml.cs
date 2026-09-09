@@ -34,11 +34,6 @@ internal sealed class BindingErrorListener : System.Diagnostics.TraceListener
 
 public partial class App : Application
 {
-    private const string OAuthClientId = "REPLACE_WITH_YOUR_OAUTH_CLIENT_ID.apps.googleusercontent.com";
-    // Google requires this even for a "Desktop app" client; per Google's own
-    // docs it "is not treated as a secret" for installed apps. Paste the
-    // value shown for the Desktop-type client in Google Cloud Console.
-    private const string OAuthClientSecret = "REPLACE_WITH_YOUR_OAUTH_CLIENT_SECRET";
     private static readonly TimeSpan SyncInterval = TimeSpan.FromHours(3);
 
     private TrayIconService? _tray;
@@ -67,6 +62,19 @@ public partial class App : Application
         var appDataDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "YouTubeSubscriptionsToolkit");
+
+        // Per-user OAuth credentials (not shipped in the repo). Missing / still a
+        // template → show the one-time setup help and exit; there's nothing the
+        // app can do without a client.
+        var credentialsPath = Path.Combine(appDataDir, "credentials.json");
+        var credentials = GoogleCredentials.Load(credentialsPath);
+        if (credentials is null)
+        {
+            ShowCredentialsSetupHelp(appDataDir, credentialsPath);
+            Shutdown();
+            return;
+        }
+
         var store = new SubscriptionStore(
             Path.Combine(appDataDir, "settings.json"),
             Path.Combine(appDataDir, "cache.json"));
@@ -74,7 +82,7 @@ public partial class App : Application
         // Before any window is shown, so the first paint is already themed.
         ThemeManager.Initialize(store.GetAppSettings().Theme);
         var tokenStore = new TokenStore(Path.Combine(appDataDir, "token.bin"));
-        var authService = new AuthService(OAuthClientId, OAuthClientSecret, tokenStore);
+        var authService = new AuthService(credentials.ClientId, credentials.ClientSecret, tokenStore);
         var apiClient = new YouTubeApiClient(new HttpClient());
 
         Func<Task<string?>> getAccessToken = () => authService.GetAccessTokenSilentAsync();
@@ -126,6 +134,35 @@ public partial class App : Application
             onExit: () => Shutdown());
 
         _ = StartupAccountAsync(account);
+    }
+
+    /// <summary>
+    /// First run with no <c>credentials.json</c>: drop the bundled template into
+    /// the app-data folder, open it in Explorer, and tell the user what to do.
+    /// The caller exits afterward — the app is useless without a client.
+    /// </summary>
+    private static void ShowCredentialsSetupHelp(string appDataDir, string credentialsPath)
+    {
+        try
+        {
+            Directory.CreateDirectory(appDataDir);
+            var template = Path.Combine(AppContext.BaseDirectory, "credentials.example.json");
+            if (!File.Exists(credentialsPath) && File.Exists(template))
+                File.Copy(template, credentialsPath);
+            System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{credentialsPath}\"");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Could not seed credentials.json", ex);
+        }
+
+        MessageBox.Show(
+            "This app needs your own Google Cloud OAuth credentials (\"Desktop app\" client).\n\n" +
+            $"A template has been placed at:\n{credentialsPath}\n\n" +
+            "Open it, paste your client id and secret (the README has step-by-step " +
+            "instructions), save, and start the app again.",
+            "One-time setup — Google API credentials",
+            MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private async Task StartupAccountAsync(AccountViewModel account)
