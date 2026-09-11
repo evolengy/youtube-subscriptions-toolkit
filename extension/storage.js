@@ -9,6 +9,7 @@ const SYNC_KEYS = {
   groupLastVisited: "groupLastVisited",
   guideHidden: "guideHidden",
   feedBlocklist: "feedBlocklist",
+  syncIntervalMinutes: "syncIntervalMinutes",
 };
 const LOCAL_KEYS = {
   subscriptionsCache: "subscriptionsCache",
@@ -214,6 +215,33 @@ export async function getGuideHidden() {
 export async function setGuideHidden(patch) {
   const current = await getGuideHidden();
   await chrome.storage.sync.set({ [SYNC_KEYS.guideHidden]: { ...current, ...patch } });
+}
+
+// How often background.js re-syncs all subscriptions. Configurable from
+// settings.html; background.js re-reads it on every onInstalled/onStartup and
+// on storage.onChanged, so a change takes effect without reloading the
+// extension. Bounded at MIN — going lower burns quota fast: playlistItems.list
+// is 1 unit/channel and not batchable, so a few hundred subscriptions already
+// approach the 10k/day cap at the 45-minute default.
+export const DEFAULT_SYNC_INTERVAL_MINUTES = 45;
+export const MIN_SYNC_INTERVAL_MINUTES = 15;
+
+export async function getSyncIntervalMinutes() {
+  const { [SYNC_KEYS.syncIntervalMinutes]: value } = await chrome.storage.sync.get(
+    SYNC_KEYS.syncIntervalMinutes
+  );
+  const minutes = Number(value);
+  return Number.isFinite(minutes) && minutes >= MIN_SYNC_INTERVAL_MINUTES
+    ? minutes
+    : DEFAULT_SYNC_INTERVAL_MINUTES;
+}
+
+export async function setSyncIntervalMinutes(minutes) {
+  const clamped = Math.max(
+    MIN_SYNC_INTERVAL_MINUTES,
+    Math.round(Number(minutes)) || DEFAULT_SYNC_INTERVAL_MINUTES
+  );
+  await chrome.storage.sync.set({ [SYNC_KEYS.syncIntervalMinutes]: clamped });
 }
 
 export async function getSubscriptionsCache() {

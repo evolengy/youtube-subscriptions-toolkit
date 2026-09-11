@@ -13,6 +13,27 @@ const GUIDE_TOGGLES = [
 
 const el = (id) => document.getElementById(id);
 
+// --- Background sync interval --------------------------------------------
+
+async function renderSyncInterval() {
+  const minutes = await store.getSyncIntervalMinutes();
+  const select = el("syncInterval");
+  select.value = String(minutes);
+  // A value that isn't one of the fixed options (hand-edited storage, or a
+  // default that later changes) would otherwise leave nothing selected.
+  if (select.value !== String(minutes)) {
+    const opt = document.createElement("option");
+    opt.value = String(minutes);
+    opt.textContent = `${minutes} minutes (current)`;
+    select.appendChild(opt);
+    select.value = String(minutes);
+  }
+}
+
+el("syncInterval").addEventListener("change", (e) => {
+  store.setSyncIntervalMinutes(Number(e.target.value));
+});
+
 async function render() {
   const hidden = await store.getGuideHidden();
   const list = el("guideToggles");
@@ -119,8 +140,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes.guideHidden) render();
   if (changes.feedBlocklist) renderBlocklist();
   if (changes.groups) renderNotifyGroups();
+  if (changes.syncIntervalMinutes) renderSyncInterval();
 });
 
 render();
 renderBlocklist();
 renderNotifyGroups();
+renderSyncInterval();

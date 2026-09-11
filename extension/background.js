@@ -28,8 +28,29 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   chrome.notifications.clear(notificationId);
 });
 
+// (Re)creates the alarm at the stored interval — chrome.alarms.create with an
+// existing name replaces it, so this is also how a settings.html edit takes
+// effect immediately, without reloading the extension.
+async function ensureAlarm() {
+  const periodInMinutes = await store.getSyncIntervalMinutes();
+  chrome.alarms.create(REFRESH_ALARM, { periodInMinutes });
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.alarms.create(REFRESH_ALARM, { periodInMinutes: 45 });
+  ensureAlarm();
+});
+
+// onInstalled only fires on install/update — a plain browser restart needs its
+// own hook, or a stored interval changed while the browser was closed would
+// only apply after the next update.
+chrome.runtime.onStartup.addListener(() => {
+  ensureAlarm();
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && changes.syncIntervalMinutes) {
+    ensureAlarm().catch((err) => logger.error(`Could not reschedule sync: ${err.message}`));
+  }
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {

@@ -35,6 +35,15 @@ body {
   font: inherit;
   resize: vertical;
 }
+.field select {
+  background: #181818;
+  color: #f1f1f1;
+  border: 1px solid #303030;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+}
 .muted-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .muted-row button {
   flex: none;

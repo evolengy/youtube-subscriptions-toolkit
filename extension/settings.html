@@ -13,6 +13,27 @@
 
   <main class="page">
     <section class="group">
+      <h2>Background sync</h2>
+      <p class="note">
+        How often to check all your subscriptions for new videos. Shorter
+        intervals use more of your daily API quota — with a few hundred
+        subscriptions, checking too often can exhaust it before the day is over.
+      </p>
+      <label class="field">
+        <span class="field-label">Check every</span>
+        <select id="syncInterval">
+          <option value="15">15 minutes</option>
+          <option value="30">30 minutes</option>
+          <option value="45">45 minutes (default)</option>
+          <option value="60">1 hour</option>
+          <option value="120">2 hours</option>
+          <option value="180">3 hours</option>
+          <option value="240">4 hours</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="group">
       <h2>Hide sections of YouTube's left menu</h2>
       <p class="note">
         Each toggle hides that block of youtube.com's own sidebar. Sections that
@@ -42,8 +63,8 @@
     <section class="group">
       <h2>Notify me about new videos in</h2>
       <p class="note">
-        A desktop notification when a background sync (every ~45 min) finds new
-        videos in a chosen group. Needs the browser to be running.
+        A desktop notification when a background sync (see “Background sync”
+        above) finds new videos in a chosen group. Needs the browser to be running.
       </p>
       <ul id="notifyGroups" class="toggles"></ul>
       <p id="noGroups" class="note" hidden>No groups yet. Create some in “Edit groups”.</p>

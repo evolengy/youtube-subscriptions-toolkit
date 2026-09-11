@@ -273,8 +273,11 @@ attached property alone doesn't hold against `IScrollInfo`). Each consumer suppl
 
 ## extension architecture
 
-`background.js` (MV3 service worker) owns a `chrome.alarms` refresh loop (45 min) and a
-message router; its sync also fires per-group "new video" desktop notifications (opt-in
+`background.js` (MV3 service worker) owns a `chrome.alarms` refresh loop (interval
+configurable on `settings.html`, sync key `syncIntervalMinutes`, default 45 min / floor
+15 min — `playlistItems.list` is 1 unit/channel and not batchable, so going lower burns
+quota fast; the alarm is recreated on `onInstalled`/`onStartup`/`storage.onChanged` so an
+edit applies without reloading the extension) and a message router; its sync also fires per-group "new video" desktop notifications (opt-in
 via `groups[id].notify`, set on `settings.html`; diff logic in the ESM module
 `groupNotify.js`, `node --test groupNotify.test.mjs`); `youtubeApi.js` wraps the Data API using `chrome.identity.getAuthToken` (one
 `https://www.googleapis.com/auth/youtube` token for everything, no refresh mechanism).
