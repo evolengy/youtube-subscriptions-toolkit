@@ -124,11 +124,35 @@ async function handleMessage(message) {
   }
 }
 
+// MV3 service workers are suspended after ~30s with no extension-API
+// activity, and a long chain of plain fetch() calls (refreshAll's
+// per-channel loop below) doesn't reliably reset that timer — so a
+// background-triggered sync can be killed mid-run with nothing to catch or
+// log, while a manual "Refresh now" (page open, actively used) rarely hits
+// it. A trivial chrome.* call on an interval well under 30s keeps the worker
+// alive for the duration; the returned function stops it.
+function keepServiceWorkerAlive(intervalMs = 15000) {
+  const id = setInterval(() => {
+    chrome.storage.local.get("keepAlivePing");
+  }, intervalMs);
+  return () => clearInterval(id);
+}
+
 // Pulls the current subscription list, then refreshes channel details and
 // recent uploads for each one. Channels absent from the channels.list
 // response are flagged dead rather than dropped, so the dashboard can offer
 // to unsubscribe from them.
 async function refreshAll() {
+  const stopKeepAlive = keepServiceWorkerAlive();
+  try {
+    await refreshAllInner();
+  } finally {
+    stopKeepAlive();
+  }
+}
+
+async function refreshAllInner() {
+  const startedAt = Date.now();
   const token = await api.getAuthToken({ interactive: false });
   if (!token) return;
 
@@ -196,8 +220,9 @@ async function refreshAll() {
     return vids.some((v) => !known.has(v.videoId));
   }).length;
   const suffix = failedChannels ? `, ${failedChannels} failed` : "";
+  const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
   logger.info(
-    `Sync OK — ${Object.keys(videosCache).length} channels, ${withNew} with new videos${suffix}`
+    `Sync OK — ${Object.keys(videosCache).length} channels, ${withNew} with new videos${suffix} (${seconds}s)`
   );
 }
 
