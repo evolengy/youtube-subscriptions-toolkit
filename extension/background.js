@@ -57,10 +57,15 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === REFRESH_ALARM) {
-    refreshAll().catch((err) => logger.error(`Scheduled sync failed: ${err.message}`));
-  }
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== REFRESH_ALARM) return;
+  // Logged (and awaited) before refreshAll() starts, deliberately separate from
+  // "Sync OK" / any error it might log — if this line is missing after a wait,
+  // the alarm never reached this listener at all; if it's here but nothing
+  // else ever follows, refreshAll() (or the service worker itself) died
+  // mid-run without a chance to log why.
+  await logger.info("Scheduled sync alarm fired");
+  await refreshAll().catch((err) => logger.error(`Scheduled sync failed: ${err.message}`));
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
