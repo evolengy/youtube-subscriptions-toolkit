@@ -240,6 +240,15 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
+// A background sync (scheduled or from another tab) writes the local cache —
+// reflect it live, same as channels.js, so "Synced HH:MM" and the feed itself
+// don't sit stale until this tab is reloaded or "Refresh now" is clicked here.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && (changes.subscriptionsCache || changes.videosCache || changes.lastSyncedAt)) {
+    loadAndRender();
+  }
+});
+
 // --- Feed -------------------------------------------------------------
 
 function getVisibleChannelIds() {
