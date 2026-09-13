@@ -34,17 +34,21 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 async function ensureAlarm() {
   const periodInMinutes = await store.getSyncIntervalMinutes();
   chrome.alarms.create(REFRESH_ALARM, { periodInMinutes });
+  // A visible trail in logs.html that this actually ran, and at what period —
+  // otherwise there's no way to tell "never scheduled" from "scheduled but the
+  // browser wasn't open when it was due" (chrome.alarms doesn't backfill).
+  logger.info(`Background sync (re)scheduled — every ${periodInMinutes} min`);
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  ensureAlarm();
+  ensureAlarm().catch((err) => logger.error(`Could not schedule sync on install: ${err.message}`));
 });
 
 // onInstalled only fires on install/update — a plain browser restart needs its
 // own hook, or a stored interval changed while the browser was closed would
 // only apply after the next update.
 chrome.runtime.onStartup.addListener(() => {
-  ensureAlarm();
+  ensureAlarm().catch((err) => logger.error(`Could not schedule sync on startup: ${err.message}`));
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {

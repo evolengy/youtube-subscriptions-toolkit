@@ -15,6 +15,11 @@ const el = (id) => document.getElementById(id);
 
 // --- Background sync interval --------------------------------------------
 
+// Mirrors background.js's REFRESH_ALARM — keep in sync. chrome.alarms is
+// available from any extension page (not just the service worker) as long as
+// the "alarms" permission is declared, so this reads the real alarm directly.
+const REFRESH_ALARM = "refresh-subscriptions";
+
 async function renderSyncInterval() {
   const minutes = await store.getSyncIntervalMinutes();
   const select = el("syncInterval");
@@ -30,8 +35,37 @@ async function renderSyncInterval() {
   }
 }
 
+function formatRelative(ms) {
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem ? `${hrs} h ${rem} min` : `${hrs} h`;
+}
+
+// Answers "is the auto-refresh actually scheduled, and for when" — the thing
+// that's otherwise unverifiable when a scheduled sync seems to never happen.
+async function renderNextSync() {
+  const readout = el("nextSync");
+  const alarm = await chrome.alarms.get(REFRESH_ALARM);
+  if (!alarm) {
+    readout.textContent = "Not scheduled yet — reopen this page in a moment, or reload the extension.";
+    return;
+  }
+  const ms = alarm.scheduledTime - Date.now();
+  const relative = ms <= 0 ? "due any moment" : `in ${formatRelative(ms)}`;
+  const absolute = new Date(alarm.scheduledTime).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  readout.textContent = `Next automatic check: ${relative} (${absolute})`;
+}
+
 el("syncInterval").addEventListener("change", (e) => {
   store.setSyncIntervalMinutes(Number(e.target.value));
+  // The actual reschedule happens async in background.js via storage.onChanged
+  // — this is a best-effort nudge; the 20s poll below self-corrects regardless.
+  setTimeout(renderNextSync, 500);
 });
 
 async function render() {
@@ -140,10 +174,15 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes.guideHidden) render();
   if (changes.feedBlocklist) renderBlocklist();
   if (changes.groups) renderNotifyGroups();
-  if (changes.syncIntervalMinutes) renderSyncInterval();
+  if (changes.syncIntervalMinutes) {
+    renderSyncInterval();
+    renderNextSync();
+  }
 });
 
 render();
 renderBlocklist();
 renderNotifyGroups();
 renderSyncInterval();
+renderNextSync();
+setInterval(renderNextSync, 20_000); // keeps the countdown honest while the page is open
