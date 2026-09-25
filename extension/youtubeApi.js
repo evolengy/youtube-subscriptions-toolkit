@@ -95,6 +95,25 @@ export async function fetchAllSubscriptions(token) {
   return results;
 }
 
+// The caller's subscription to one channel, or null if not (yet) subscribed —
+// 1 quota unit. Used right after a subscribe click on youtube.com; the Data API
+// can lag that write by a few seconds, so the caller retries on null.
+// Returns { subscriptionId, channelId, title, thumbnail } | null
+export async function fetchSubscriptionFor(token, channelId) {
+  const data = await apiFetch("subscriptions", {
+    token,
+    params: { part: "snippet", mine: "true", forChannelId: channelId, maxResults: 1 },
+  });
+  const item = data.items?.[0];
+  if (!item) return null;
+  return {
+    subscriptionId: item.id,
+    channelId: item.snippet.resourceId.channelId,
+    title: item.snippet.title,
+    thumbnail: item.snippet.thumbnails?.default?.url,
+  };
+}
+
 // Looks up channel details (uploads playlist id + country) for up to 50 ids at a time.
 // Channels that no longer exist simply won't appear in the response — caller
 // treats "missing from result" as "dead channel".

@@ -730,9 +730,14 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (
     area === "local" &&
-    (changes.likedVideos || changes.videosCache || changes.prevSyncedAt)
+    (changes.likedVideos ||
+      changes.videosCache ||
+      changes.prevSyncedAt ||
+      changes.subscriptionsCache)
   ) {
-    refreshSidebar(); // a sync refreshed the liked list / videos / the "new" baseline
+    // a sync refreshed the liked list / videos / the "new" baseline, or a
+    // subscribe/unsubscribe changed the "All subscriptions" set
+    refreshSidebar();
   }
   // Blocklist edited on settings.html while the overlay is open.
   if (area === "sync" && changes.feedBlocklist && getOverlay()) {
