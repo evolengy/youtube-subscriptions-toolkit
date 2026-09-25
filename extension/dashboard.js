@@ -421,4 +421,9 @@ for (const id of [
 }
 el("searchQuery").addEventListener("input", renderFeed);
 
-refreshAuthUI();
+refreshAuthUI().then(() => {
+  // Cheap list-only check on open — picks up a subscribe/unsubscribe made on
+  // another device since the last check. Any change lands via storage.onChanged
+  // above; a failure is already in logs.html, so it needs no toast here.
+  if (!el("app").hidden) send({ type: "SYNC_SUBSCRIPTIONS" }).catch(() => {});
+});

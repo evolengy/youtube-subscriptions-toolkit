@@ -284,6 +284,14 @@ via `groups[id].notify`, set on `settings.html`; diff logic in the ESM module
 `apiFetch` retries transient 5xx/429 (not 4xx) with exponential backoff (`node --test
 youtubeApi.test.mjs`), and `refreshAll`'s per-channel loop is `try`-wrapped so one
 channel's failure keeps its previous cached videos instead of aborting the whole sync.
+A second alarm (`check-subscriptions`, 10 min, also sent as `SYNC_SUBSCRIPTIONS` when the
+dashboard opens) diffs only `subscriptions.list` against the cache, and `chrome.webRequest`
+observes youtube.com's own InnerTube `/youtubei/v1/subscription/{subscribe,unsubscribe}` POSTs
+(permission `webRequest` + host `https://www.youtube.com/*`, observe-only) to apply a click on
+youtube.com immediately — both add/drop single channels (unsubscribed ones are also pruned
+from groups) instead of a full sync (a full sync prunes groups the same way); pure logic in `subscriptionWatch.js` (`node --test
+subscriptionWatch.test.mjs`). Every cache rewrite goes through `exclusive()`, a promise queue,
+so a quick update can't be overwritten by a concurrent `refreshAll`.
 `storage.js` wraps `chrome.storage`. `logger.js` (ESM) is a 200-entry ring buffer in
 `chrome.storage.local` — `background.js` records each sync's outcome and its errors
 there (the MV3 worker's own console is ephemeral); surface is `logs.html`. `toast.js`
