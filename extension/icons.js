@@ -8,6 +8,9 @@
 
   // name -> array of <path d> strings.
   const PATHS = {
+    settings: ["M9 3h6l1 4 4 1v6l-4 1-1 4H9l-1-4-4-1V8l4-1z", "M12 8a3 3 0 100 6 3 3 0 000-6z"],
+    signOut: ["M9 3H4v18h5", "M9 12h12", "M17 8l4 4-4 4"],
+    folders: ["M3 7V4h6l2 2h10v12H7", "M3 8h6l2 2h7v11H3z"],
     check: ["M4 12l5 5L20 7"],
     ban: ["M12 3a9 9 0 100 18 9 9 0 000-18z", "M6.3 6.3l11.4 11.4"],
     undo: ["M9 14 4 9l5-5", "M4 9h10.5a5.5 5.5 0 010 11H10"],

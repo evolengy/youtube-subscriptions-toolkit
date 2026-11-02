@@ -26,6 +26,7 @@ const { countNewPerGroup } = window.YSTGroupCounts;
 const { buildGuideCss } = window.YSTDeclutter;
 const { openEmojiPicker } = window.YSTEmoji;
 const { make: makeIcon } = window.YSTIcons;
+const { addMetadata, actionMenu, renderFeedPage } = window.YSTVideoPresentation;
 
 const DEFAULT_GROUP_ICON = "📁";
 
@@ -214,16 +215,25 @@ async function renderSidebar() {
     buildGroupRow(NI_KEY, PSEUDO_LABELS[NI_KEY], (notInterestedVideoIds || []).length, "", 0)
   );
 
-  const manageLink = document.createElement("div");
+  const manageLink = document.createElement("button");
+  manageLink.type = "button";
   manageLink.className = "yst-manage-link";
-  manageLink.textContent = "Manage groups...";
-  manageLink.addEventListener("click", () => {
-    chrome.runtime.sendMessage({ type: "OPEN_DASHBOARD" });
-  });
+  manageLink.append(makeIcon("folders"), document.createTextNode("Manage groups"));
+  manageLink.addEventListener("click", openGroupsEditor);
+  manageLink.title = "Manage groups (opens in a new tab)";
   section.appendChild(manageLink);
 }
 
 // Force the next renderSidebar() to rebuild the rows, then run it now.
+async function openGroupsEditor() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "OPEN_GROUPS" });
+    if (response?.error) throw new Error(response.error);
+  } catch (error) {
+    warn("openGroupsEditor failed", error);
+  }
+}
+
 function refreshSidebar() {
   sidebarDirty = true;
   renderSidebar().catch((e) => warn("renderSidebar failed", e));
@@ -449,7 +459,7 @@ async function renderOverlay() {
   const hideWatchedCheckbox = document.createElement("input");
   hideWatchedCheckbox.type = "checkbox";
   hideWatchedCheckbox.checked = true;
-  hideWatchedLabel.append(hideWatchedCheckbox, document.createTextNode(" Hide watched"));
+  hideWatchedLabel.append(hideWatchedCheckbox, document.createTextNode(" Unwatched"));
   header.appendChild(hideWatchedLabel);
 
   const likedWatchedLabel = document.createElement("label");
@@ -475,6 +485,7 @@ async function renderOverlay() {
   searchInput.type = "search";
   searchInput.className = "yst-search";
   searchInput.placeholder = "Search title or channel";
+  searchInput.setAttribute("aria-label", "Search title or channel");
   header.appendChild(searchInput);
 
   const closeBtn = document.createElement("button");
@@ -486,7 +497,51 @@ async function renderOverlay() {
   const feed = document.createElement("div");
   feed.className = "yst-feed";
 
-  overlay.append(header, feed);
+  const controls = document.createElement("div");
+  controls.className = "yst-feed-controls";
+  typeSelect.setAttribute("aria-label", "Video type");
+  sortSelect.setAttribute("aria-label", "Sort videos");
+  durationSelect.setAttribute("aria-label", "Video length");
+  uploadedSelect.setAttribute("aria-label", "Upload date");
+  const advanced = document.createElement("details");
+  advanced.className = "yst-advanced-filters";
+  const filtersSummary = document.createElement("summary");
+  filtersSummary.textContent = "Filters";
+  const fields = document.createElement("div");
+  fields.className = "yst-filter-fields";
+  fields.append(durationSelect, uploadedSelect, likedWatchedLabel, showNiLabel, showBlockedLabel);
+  advanced.append(filtersSummary, fields);
+  controls.append(searchInput, typeSelect, sortSelect, hideWatchedLabel, advanced);
+
+  const manage = document.createElement("button");
+  manage.type = "button";
+  manage.className = "yst-header-manage";
+  manage.addEventListener("click", openGroupsEditor);
+  manage.title = "Manage groups (opens in a new tab)";
+  manage.append(makeIcon("folders"), document.createTextNode("Manage groups"));
+  const refresh = document.createElement("button");
+  refresh.className = "yst-close-btn";
+  refresh.textContent = "Refresh";
+  refresh.addEventListener("click", async () => {
+    refresh.disabled = true;
+    refresh.textContent = "Refreshing...";
+    try {
+      const result = await chrome.runtime.sendMessage({ type: "REFRESH_ALL" });
+      if (result?.error) throw new Error(result.error);
+      await rerenderFeed();
+    } catch (error) {
+      const status = document.createElement("p");
+      status.setAttribute("role", "alert");
+      status.textContent = `Refresh failed: ${error.message}`;
+      feed.prepend(status);
+    } finally {
+      refresh.disabled = false;
+      refresh.textContent = "Refresh";
+    }
+  });
+  header.insertBefore(refresh, closeBtn);
+  header.insertBefore(manage, closeBtn);
+  overlay.append(header, controls, feed);
 
   const rerenderFeed = async () => {
     const {
@@ -518,18 +573,20 @@ async function renderOverlay() {
     });
 
     const pseudo = isPseudoKey(activeGroupKey);
-    feed.replaceChildren();
-    for (const video of filtered) {
-      feed.appendChild(
-        buildVideoCard(video, {
+    renderFeedPage(feed, filtered, (video) => buildVideoCard(video, {
           watched: watchedIds.has(video.videoId) || (video.liked && likedAsWatched),
           notInterested: notInterestedIds.has(video.videoId),
           liked: video.liked,
           channelMuted: mutedChannelIds.has(video.channelId),
+          channelTitle: channelTitleOf(video.channelId),
           pseudo,
           onChange: rerenderFeed,
-        })
-      );
+        }), "yst-overlay");
+    if (!filtered.length) {
+      const empty = document.createElement("p");
+      empty.className = "yst-empty-feed";
+      empty.textContent = "No videos to show. Try changing the filters or refreshing your subscriptions.";
+      feed.appendChild(empty);
     }
   };
 
@@ -558,7 +615,7 @@ function iconButton(name, label) {
   return btn;
 }
 
-function buildVideoCard(video, { watched, notInterested, liked, channelMuted, pseudo, onChange }) {
+function buildVideoCard(video, { watched, notInterested, liked, channelMuted, channelTitle, pseudo, onChange }) {
   const card = document.createElement("div");
   // See dashboard.js: no whole-grid dimming inside a pseudo-group.
   card.className =
@@ -572,16 +629,20 @@ function buildVideoCard(video, { watched, notInterested, liked, channelMuted, ps
   link.href = `/watch?v=${video.videoId}`;
   const img = document.createElement("img");
   img.src = video.thumbnail ?? "";
+  img.alt = "";
+  img.loading = "lazy";
   link.appendChild(img);
   link.addEventListener("click", () => closeOverlay());
 
   const info = document.createElement("div");
   info.className = "info";
-  const title = document.createElement("div");
+  const title = document.createElement("a");
   title.textContent = video.title;
+  title.addEventListener("click", closeOverlay);
   const meta = document.createElement("div");
   meta.className = "meta";
-  meta.append(`${video.type} · ${(video.viewCount ?? 0).toLocaleString()} views`);
+  const channel = addMetadata(video, { thumb: link, title, meta, channelTitle });
+  channel.addEventListener("click", closeOverlay);
   if (liked) {
     const wrap = document.createElement("span");
     wrap.className = "yst-liked-mark";
@@ -594,6 +655,7 @@ function buildVideoCard(video, { watched, notInterested, liked, channelMuted, ps
   actions.className = "yst-card-actions";
 
   const watchBtn = iconButton("check", watched ? "Watched" : "Mark watched");
+  watchBtn.append(document.createTextNode(watched ? "Watched" : "Mark watched"));
   watchBtn.classList.toggle("on", watched);
   watchBtn.addEventListener("click", async () => {
     await markWatched(video.videoId);
@@ -620,8 +682,8 @@ function buildVideoCard(video, { watched, notInterested, liked, channelMuted, ps
     onChange();
   });
 
-  actions.append(watchBtn, niBtn, muteBtn);
-  info.append(title, meta, actions);
+  actions.append(watchBtn, actionMenu([niBtn, muteBtn], "yst-video-action-menu"));
+  info.append(title, channel, meta, actions);
   card.append(link, info);
   return card;
 }

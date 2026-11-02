@@ -12,6 +12,7 @@ function harness() {
     subscriptionsCache: { a: { title: 'A' }, b: { title: 'B' } },
     videosCache: { a: [{ videoId: 'a1' }], b: [{ videoId: 'b1' }] },
     groups: { g: { name: 'Saved', channelIds: ['a', 'b'] } },
+    openedTabs: [],
   };
   let fresh = [{ channelId: 'b', title: 'B' }];
   const store = {
@@ -37,6 +38,7 @@ function harness() {
     },
     logger: { info() {}, error(message) { assert.fail(message); } },
     chrome: {
+      tabs: { create: async ({ url }) => { state.openedTabs.push(url); } },
       runtime: { getURL: p => p, onInstalled: event, onStartup: event, onMessage: event },
       action: { onClicked: event }, notifications: { onClicked: event },
       storage: { onChanged: event }, alarms: { onAlarm: event },
@@ -47,6 +49,12 @@ function harness() {
   vm.runInContext(source, context);
   return { state, context, setFresh: value => { fresh = value; } };
 }
+
+test('group editor requests open the internal page through background tabs API', async () => {
+  const h = harness();
+  await vm.runInContext('handleMessage({ type: "OPEN_GROUPS" })', h.context);
+  assert.deepEqual(h.state.openedTabs, ['groups.html']);
+});
 
 for (const operation of [
   'refreshAll()',

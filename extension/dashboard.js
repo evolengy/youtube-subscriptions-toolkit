@@ -6,6 +6,7 @@ import { toast } from "./toast.js";
 const { applyFilters, hydrateVideoList } = window.YSTFeed;
 const { countNewPerGroup, ALL_KEY } = window.YSTGroupCounts;
 const { make: makeIcon } = window.YSTIcons;
+const { addMetadata, actionMenu, renderFeedPage } = window.YSTVideoPresentation;
 
 const DEFAULT_GROUP_ICON = "📁";
 
@@ -98,7 +99,9 @@ el("manageChannelsBtn").addEventListener("click", openPage("channels.html"));
 el("editGroupsBtn").addEventListener("click", openPage("groups.html"));
 el("settingsBtn").addEventListener("click", openPage("settings.html")); // no auth needed
 
-el("logsBtn").appendChild(makeIcon("list"));
+el("settingsBtn").prepend(makeIcon("settings"));
+el("logsBtn").prepend(makeIcon("list"));
+el("signOutBtn").prepend(makeIcon("signOut"));
 el("logsBtn").addEventListener("click", openPage("logs.html"));
 
 async function refreshLogsDot() {
@@ -172,16 +175,20 @@ function renderGroups() {
   // countKey: which newCounts entry this row shows a badge for (null for the
   // pseudo-groups, which have no "new" notion).
   const selectRow = (id, label, isActive, countKey) => {
-    const item = document.createElement("li");
+    const item = document.createElement("button");
+    item.type = "button";
     item.className = isActive ? "active" : "";
-    item.append(label);
+    const name = document.createElement("span");
+    name.className = "group-label";
+    name.textContent = label;
+    item.appendChild(name);
 
     const n = countKey ? newCounts[countKey] ?? 0 : 0;
     if (n > 0) {
       const badge = document.createElement("span");
       badge.className = "new-badge";
       badge.textContent = n > 99 ? "99+" : n;
-      item.append(" ", badge);
+      item.appendChild(badge);
     }
 
     item.addEventListener("click", async () => {
@@ -280,7 +287,10 @@ function collectVideos() {
 
 function renderFeed() {
   const feed = el("feed");
-  feed.innerHTML = "";
+  feed.replaceChildren();
+  el("feedHeading").textContent = activeGroupId === LIKED_KEY ? "Liked"
+    : activeGroupId === NI_KEY ? "Not interested"
+    : groups[activeGroupId]?.name ?? "All subscriptions";
 
   // Pseudo-groups are the user's explicit lists — show them whole, no blocklist.
   const pseudo = activeGroupId === LIKED_KEY || activeGroupId === NI_KEY;
@@ -303,8 +313,12 @@ function renderFeed() {
     showBlocked: el("showBlocked").checked,
   });
 
-  for (const video of videos) {
-    feed.appendChild(renderVideoCard(video));
+  renderFeedPage(feed, videos, renderVideoCard, "yst-dashboard");
+  if (!videos.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-feed";
+    empty.textContent = "No videos to show. Try changing the filters or refreshing your subscriptions.";
+    feed.appendChild(empty);
   }
 }
 
@@ -340,15 +354,20 @@ function renderVideoCard(video) {
   link.target = "_blank";
   const img = document.createElement("img");
   img.src = video.thumbnail ?? "";
+  img.alt = "";
+  img.loading = "lazy";
   link.appendChild(img);
 
   const info = document.createElement("div");
   info.className = "info";
-  const title = document.createElement("div");
+  const title = document.createElement("a");
   title.textContent = video.title;
   const meta = document.createElement("div");
   meta.className = "meta";
-  meta.append(`${video.type} · ${(video.viewCount ?? 0).toLocaleString()} views`);
+  const channel = addMetadata(video, {
+    thumb: link, title, meta,
+    channelTitle: subscriptions[video.channelId]?.title,
+  });
   if (liked) {
     const thumb = makeIcon("thumb", { size: 14 });
     thumb.classList.add("liked-mark");
@@ -363,6 +382,7 @@ function renderVideoCard(video) {
   actions.className = "card-actions";
 
   const watchBtn = iconButton("check", watched ? "Watched" : "Mark watched");
+  watchBtn.append(document.createTextNode(watched ? "Watched" : "Mark watched"));
   watchBtn.classList.toggle("on", watched);
   watchBtn.addEventListener("click", async () => {
     await store.markVideoWatched(video.videoId);
@@ -401,8 +421,8 @@ function renderVideoCard(video) {
     renderFeed();
   });
 
-  actions.append(watchBtn, niBtn, muteBtn);
-  info.append(title, meta, actions);
+  actions.append(watchBtn, actionMenu([niBtn, muteBtn], "video-action-menu"));
+  info.append(title, channel, meta, actions);
   card.append(link, info);
   return card;
 }

@@ -2,33 +2,43 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Subscriptions Dashboard</title>
   <link rel="stylesheet" href="dashboard.css" />
 </head>
 <body>
   <header class="topbar">
-    <h1>Subscriptions Dashboard</h1>
+    <h1>Subscriptions</h1>
+    <nav class="primary-nav" aria-label="Main navigation">
+      <button aria-current="page">Feed</button>
+      <button id="editGroupsBtn" hidden>Groups</button>
+      <button id="manageChannelsBtn" hidden>Channels</button>
+    </nav>
     <div class="auth-area">
       <span id="syncStatus"></span>
-      <button id="editGroupsBtn" hidden>Edit groups</button>
-      <button id="manageChannelsBtn" hidden>Manage channels</button>
-      <button id="settingsBtn">Settings</button>
-      <button id="logsBtn" class="icon-btn" title="Activity log" aria-label="Activity log"></button>
-      <button id="signInBtn">Sign in with Google</button>
-      <button id="signOutBtn" hidden>Sign out</button>
       <button id="refreshBtn" hidden>Refresh now</button>
+      <details class="app-menu">
+        <summary aria-label="Settings and account menu">⋮</summary>
+        <div class="app-menu-items">
+          <button id="settingsBtn">Settings</button>
+          <button id="logsBtn">Activity log</button>
+          <button id="signOutBtn" hidden>Sign out</button>
+        </div>
+      </details>
+      <button id="signInBtn">Sign in with Google</button>
     </div>
   </header>
 
   <main id="app" hidden>
     <aside class="groups-panel">
       <h2>Groups</h2>
-      <ul id="groupList"></ul>
-      <p class="hint">Create, rename and fill groups in <strong>Edit groups</strong>.</p>
+      <div id="groupList" role="group" aria-label="Subscription groups"></div>
     </aside>
 
     <section class="feed-panel">
+      <h2 id="feedHeading">All subscriptions</h2>
       <div class="feed-controls">
+        <input id="searchQuery" type="search" placeholder="Search title or channel" aria-label="Search title or channel" />
         <label>Type:
           <select id="filterType">
             <option value="all">All</option>
@@ -37,6 +47,17 @@
             <option value="live">Live</option>
           </select>
         </label>
+        <label>Sort:
+          <select id="sortBy">
+            <option value="date">Newest</option>
+            <option value="duration">Duration</option>
+            <option value="views">Most viewed</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="hideWatched" checked /> Unwatched</label>
+        <details class="advanced-filters">
+          <summary>Filters</summary>
+          <div class="advanced-filter-fields">
         <label>Length:
           <select id="filterDuration">
             <option value="any">Any</option>
@@ -53,18 +74,11 @@
             <option value="month">This month</option>
           </select>
         </label>
-        <label>Sort:
-          <select id="sortBy">
-            <option value="date">Newest</option>
-            <option value="duration">Duration</option>
-            <option value="views">Most viewed</option>
-          </select>
-        </label>
-        <label><input type="checkbox" id="hideWatched" checked /> Hide watched</label>
         <label><input type="checkbox" id="likedAsWatched" checked /> Liked = watched</label>
         <label><input type="checkbox" id="showNotInterested" /> Show not interested</label>
         <label><input type="checkbox" id="showBlocked" /> Show blocked</label>
-        <input id="searchQuery" type="search" placeholder="Search title or channel" />
+          </div>
+        </details>
       </div>
       <div id="feed" class="feed"></div>
     </section>
@@ -73,6 +87,7 @@
   <script src="feedFilter.js"></script>
   <script src="groupCounts.js"></script>
   <script src="icons.js"></script>
+  <script src="videoPresentation.js"></script>
   <script src="dashboard.js" type="module"></script>
 </body>
 </html>

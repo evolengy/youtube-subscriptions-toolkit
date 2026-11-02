@@ -147,3 +147,57 @@ button:hover { background: #3f3f3f; }
 }
 .card-action:hover { background: #303030; color: #f1f1f1; }
 .card-action.on { color: #3ea6ff; }
+
+/* Feed navigation and progressive disclosure. */
+.topbar { gap: 16px; flex-wrap: wrap; }
+.primary-nav { display: flex; gap: 4px; }
+.primary-nav button { border: 0; background: transparent; border-radius: 8px; }
+.primary-nav [aria-current] { background: #272727; }
+.auth-area { margin-left: auto; flex-wrap: wrap; }
+#syncStatus { color: #aaa; font-size: 12px; }
+.app-menu, .video-action-menu { position: relative; }
+.app-menu summary, .video-action-menu summary { list-style: none; cursor: pointer; padding: 5px 12px; border-radius: 8px; font-size: 22px; }
+.app-menu summary::-webkit-details-marker, .video-action-menu summary::-webkit-details-marker { display: none; }
+.app-menu-items, .video-menu-items { position: absolute; top: 100%; right: 0; z-index: 10; width: 230px; max-width: calc(100vw - 40px); padding: 6px; border: 1px solid #3f3f3f; border-radius: 10px; background: #202020; box-shadow: 0 8px 24px #0006; }
+.app-menu-items button, .video-menu-items button { display: flex; width: 100%; align-items: center; gap: 8px; text-align: left; border: 0; border-radius: 6px; }
+#logsBtn { position: relative; }
+#logsBtn.has-errors::after { content: ''; width: 7px; height: 7px; background: #ff4e45; border-radius: 50%; margin-left: auto; }
+#groupList > button { display: flex; align-items: center; gap: 7px; width: 100%; border: 0; border-radius: 8px; padding: 9px 8px; text-align: left; font-size: 13px; background: transparent; }
+#groupList > button:hover, #groupList > button.active { background: #272727; }
+#groupList .group-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#groupList .new-badge { margin-left: auto; flex-shrink: 0; }
+.app-menu-items svg { flex-shrink: 0; }
+.manage-groups { display: flex; align-items: center; gap: 8px; width: 100%; font-size: 13px; border: 0; border-radius: 8px; }
+.feed-panel { min-width: 0; }
+#feedHeading { font-size: 22px; margin: 0 0 18px; }
+.feed-controls input[type="search"] { flex: 1; min-width: 160px; padding: 9px 12px; }
+.advanced-filters { width: 100%; }
+.advanced-filters summary { cursor: pointer; width: fit-content; padding: 7px 10px; background: #272727; border-radius: 8px; }
+.advanced-filter-fields { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; padding: 16px 0 8px; }
+.feed { gap: 24px 16px; }
+.video-card { overflow: visible; }
+.video-card .thumb { aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px 8px 0 0; background: #272727; }
+.video-card img { height: 100%; object-fit: cover; }
+.duration-badge { position: absolute; right: 7px; bottom: 7px; background: #111e; color: #fff; border-radius: 4px; padding: 2px 5px; font-size: 12px; }
+.video-card .info { padding: 12px; min-width: 0; }
+.video-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: inherit; text-decoration: none; font-size: 14px; font-weight: 600; line-height: 1.45; margin-bottom: 6px; overflow-wrap: anywhere; }
+.video-channel { display: block; color: #aaa; font-size: 12px; text-decoration: none; overflow-wrap: anywhere; }
+.video-title:hover, .video-channel:hover { text-decoration: underline; }
+.card-actions { justify-content: space-between; align-items: center; padding-top: 12px; }
+.card-action { align-items: center; gap: 6px; font: inherit; font-size: 12px; padding: 6px; }
+.video-menu-items .card-action { padding: 10px; }
+.empty-feed { grid-column: 1 / -1; color: #aaa; padding: 24px 0; }
+.yst-dashboard-feed-page { display: contents; }
+.yst-dashboard-show-more { grid-column: 1 / -1; justify-self: center; margin: 16px 0; }
+@media (max-width: 760px) {
+  #app { grid-template-columns: 180px minmax(0, 1fr); padding: 14px; }
+  .topbar { padding: 12px 14px; }
+  .feed { grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); }
+}
+@media (max-width: 520px) {
+  #app { display: block; }
+  .groups-panel { margin-bottom: 18px; }
+  #groupList { display: flex; flex-wrap: wrap; gap: 4px; }
+  #groupList > button { width: auto; max-width: 100%; overflow-wrap: anywhere; }
+  .auth-area { margin-left: 0; width: 100%; }
+}

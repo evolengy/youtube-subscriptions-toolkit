@@ -259,3 +259,41 @@ html[dark] {
 }
 .yst-card-action:hover { background: var(--yst-chip-bg); color: var(--yst-text); }
 .yst-card-action.on { color: var(--yst-accent); }
+
+.yst-manage-link { gap: 8px; text-decoration: none; border: 0; background: transparent; text-align: left; width: calc(100% - 24px); }
+.yst-header-manage { display: inline-flex; align-items: center; gap: 7px; color: var(--yst-accent); text-decoration: none; font-size: 14px; padding: 8px; border-radius: 8px; }
+.yst-header-manage:hover { background: var(--yst-hover); }
+.yst-header-manage { border: 0; background: transparent; cursor: pointer; font-family: var(--yst-font); }
+.yst-feed-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; color: var(--yst-text); font: 14px var(--yst-font); }
+.yst-feed-controls select, .yst-feed-controls .yst-search { height: 36px; border: 0; border-radius: 8px; background: var(--yst-chip-bg); color: var(--yst-text); padding: 0 12px; font: inherit; max-width: 100%; }
+.yst-feed-controls .yst-search { flex: 1; min-width: 170px; }
+.yst-feed-controls .yst-search::placeholder { color: var(--yst-text-secondary); }
+.yst-feed-controls select option { background: var(--yst-canvas); color: var(--yst-text); }
+.yst-feed-controls label { display: inline-flex; gap: 5px; align-items: center; }
+.yst-advanced-filters { width: 100%; }
+.yst-advanced-filters summary { cursor: pointer; width: fit-content; background: var(--yst-chip-bg); border-radius: 8px; padding: 8px 12px; }
+.yst-filter-fields { display: flex; gap: 14px 18px; align-items: center; flex-wrap: wrap; padding-top: 16px; }
+.yst-video-card { overflow: visible; }
+.yst-video-card .thumb { aspect-ratio: 16 / 9; overflow: hidden; border-radius: 12px 12px 0 0; background: var(--yst-surface); }
+.yst-video-card img { height: 100%; object-fit: cover; }
+.yst-video-card .duration-badge { position: absolute; right: 7px; bottom: 7px; background: #111e; color: #fff; padding: 2px 5px; font: 500 12px var(--yst-font); border-radius: 4px; }
+.yst-video-card .video-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--yst-text); text-decoration: none; font: 500 14px/1.45 var(--yst-font); margin-bottom: 6px; overflow-wrap: anywhere; }
+.yst-video-card .video-channel { display: block; color: var(--yst-text-secondary); font: 12px/1.4 var(--yst-font); text-decoration: none; overflow-wrap: anywhere; }
+.yst-video-card .video-title:hover, .yst-video-card .video-channel:hover { text-decoration: underline; }
+.yst-card-actions { justify-content: space-between; align-items: center; padding-top: 12px; }
+.yst-card-action { gap: 6px; align-items: center; font: 12px var(--yst-font); }
+.yst-video-action-menu { position: relative; }
+.yst-video-action-menu summary { list-style: none; cursor: pointer; padding: 4px 12px; border-radius: 8px; color: var(--yst-text); font: 22px var(--yst-font); }
+.yst-video-action-menu summary::-webkit-details-marker { display: none; }
+.yst-video-action-menu .video-menu-items { position: absolute; top: 100%; right: 0; z-index: 5; width: 240px; max-width: calc(100vw - 48px); border: 1px solid var(--yst-border); background: var(--yst-canvas); border-radius: 10px; padding: 6px; box-shadow: 0 8px 24px #0004; }
+.yst-video-action-menu .yst-card-action { display: flex; text-align: left; width: 100%; padding: 10px; }
+.yst-empty-feed { grid-column: 1 / -1; color: var(--yst-text-secondary); font: 14px var(--yst-font); padding: 24px 0; }
+.yst-overlay-feed-page { display: contents; }
+.yst-overlay-show-more { grid-column: 1 / -1; justify-self: center; margin: 16px 0; border: 0; border-radius: 18px; padding: 10px 20px; color: var(--yst-text); background: var(--yst-chip-bg); cursor: pointer; font: 500 14px var(--yst-font); }
+.yst-overlay-show-more[hidden] { display: none; }
+@media (max-width: 600px) {
+  .yst-overlay { padding: 16px; }
+  .yst-feed { grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); }
+  .yst-overlay-header { gap: 8px; }
+  .yst-overlay-header h2 { flex-basis: 100%; }
+}

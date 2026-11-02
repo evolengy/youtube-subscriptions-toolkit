@@ -115,6 +115,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function handleMessage(message) {
   switch (message.type) {
+    case "OPEN_GROUPS":
+      await chrome.tabs.create({ url: chrome.runtime.getURL("groups.html") });
+      return {};
     case "OPEN_DASHBOARD":
       await openOrFocusDashboard();
       return {};
