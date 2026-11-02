@@ -204,7 +204,7 @@ async function renderSidebar() {
   section.appendChild(buildGroupRow(ALL_KEY, "All subscriptions", null, "", newCounts[ALL_KEY]));
   for (const [groupId, group] of entries) {
     section.appendChild(
-      buildGroupRow(groupId, group.name, group.channelIds.length, group.icon, newCounts[groupId])
+      buildGroupRow(groupId, group.name, group.channelIds.filter((id) => Object.hasOwn(subscriptionsCache || {}, id)).length, group.icon, newCounts[groupId])
     );
   }
   section.appendChild(
@@ -388,6 +388,7 @@ async function getVisibleVideos(groupKey) {
 
   const videos = [];
   for (const channelId of channelIds) {
+    if (!Object.hasOwn(subscriptionsCache || {}, channelId)) continue;
     for (const video of (videosCache || {})[channelId] ?? []) videos.push(video);
   }
   return { ...common, videos };

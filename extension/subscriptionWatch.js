@@ -69,32 +69,17 @@ export function diffSubscriptions(cache, fresh) {
   return { added, removed };
 }
 
-// Drops channels from both caches and from every group's channelIds (a group
-// keeping an unsubscribed channel would show a wrong count forever, and the
-// channel no longer appears anywhere to un-assign it). Returns new objects plus
-// `groupsChanged`, so the caller only writes chrome.storage.sync when needed.
+// Subscription state is disposable; group membership is user-curated. Keep
+// memberships across unsubscribe / temporary API omissions so resubscription
+// restores the channel to its groups. Only the group editor removes membership.
 export function removeChannels({ subscriptionsCache, videosCache, groups }, channelIds) {
   const drop = new Set(channelIds);
   const without = (map) =>
     Object.fromEntries(Object.entries(map || {}).filter(([id]) => !drop.has(id)));
-
-  let groupsChanged = false;
-  const nextGroups = {};
-  for (const [groupId, group] of Object.entries(groups || {})) {
-    const ids = group.channelIds ?? [];
-    const kept = ids.filter((id) => !drop.has(id));
-    if (kept.length !== ids.length) {
-      groupsChanged = true;
-      nextGroups[groupId] = { ...group, channelIds: kept };
-    } else {
-      nextGroups[groupId] = group;
-    }
-  }
-
   return {
     subscriptionsCache: without(subscriptionsCache),
     videosCache: without(videosCache),
-    groups: nextGroups,
-    groupsChanged,
+    groups: groups || {},
+    groupsChanged: false,
   };
 }

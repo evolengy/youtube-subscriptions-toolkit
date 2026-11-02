@@ -204,14 +204,7 @@ async function refreshAllInner() {
   for (const sub of subscriptions) {
     subscriptionsCache[sub.channelId] = toCacheEntry(sub, channelDetails.get(sub.channelId));
   }
-  // Unsubscribed elsewhere since the last sync — prune them from groups, same
-  // as the quick paths below do (skipped on the first-ever sync / empty answer).
-  const previousSubscriptions = await store.getSubscriptionsCache();
-  if (notifySince && subscriptions.length) {
-    const { removed } = diffSubscriptions(previousSubscriptions, subscriptions);
-    const pruned = removeChannels({ groups: await store.getGroups() }, removed);
-    if (pruned.groupsChanged) await store.saveGroups(pruned.groups);
-  }
+  // Replace disposable subscription state without touching saved memberships.
   await store.saveSubscriptionsCache(subscriptionsCache);
 
   const videosCache = {};
@@ -343,18 +336,16 @@ async function addChannels(token, subs) {
   await store.saveVideosCache(videosCache);
 }
 
-// Unsubscribed channels leave both caches and every group. Call inside exclusive().
+// Unsubscribed channels leave both caches; saved groups survive. Call inside exclusive().
 async function dropChannels(channelIds) {
   if (!channelIds.length) return;
-  const [subscriptionsCache, videosCache, groups] = await Promise.all([
+  const [subscriptionsCache, videosCache] = await Promise.all([
     store.getSubscriptionsCache(),
     store.getVideosCache(),
-    store.getGroups(),
   ]);
-  const next = removeChannels({ subscriptionsCache, videosCache, groups }, channelIds);
+  const next = removeChannels({ subscriptionsCache, videosCache }, channelIds);
   await store.saveSubscriptionsCache(next.subscriptionsCache);
   await store.saveVideosCache(next.videosCache);
-  if (next.groupsChanged) await store.saveGroups(next.groups);
 }
 
 // --- Subscription list check -------------------------------------------------
@@ -373,7 +364,7 @@ async function syncSubscriptionList() {
       const cache = await store.getSubscriptionsCache();
       const fresh = await api.fetchAllSubscriptions(token);
       // An empty answer against a non-empty cache is far likelier an API hiccup
-      // than "unsubscribed from everything" — and acting on it would strip every group.
+      // than "unsubscribed from everything" — keep the last usable cache.
       if (fresh.length === 0 && Object.keys(cache).length > 0) {
         logger.error("Subscription check got an empty list — ignored");
         return;

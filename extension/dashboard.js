@@ -203,7 +203,7 @@ function renderGroups() {
     list.appendChild(
       selectRow(
         groupId,
-        `${icon} ${group.name} (${group.channelIds.length})`,
+        `${icon} ${group.name} (${group.channelIds.filter((id) => Object.hasOwn(subscriptions, id)).length})`,
         groupId === activeGroupId,
         groupId
       )
@@ -253,7 +253,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 function getVisibleChannelIds() {
   if (!activeGroupId) return Object.keys(subscriptions);
-  return groups[activeGroupId]?.channelIds ?? [];
+  return (groups[activeGroupId]?.channelIds ?? []).filter((id) => Object.hasOwn(subscriptions, id));
 }
 
 function flattenCache() {
