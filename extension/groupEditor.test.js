@@ -58,3 +58,12 @@ test("toggleMembership: adds when absent, removes when present", () => {
   assert.deepEqual(toggleMembership(["a", "b"], "a"), ["b"]);
   assert.deepEqual(toggleMembership(undefined, "a"), ["a"]);
 });
+
+test("listGroups counts only current subscriptions while retaining saved membership", () => {
+  const groups = { g: { name: "Saved", channelIds: ["a", "missing"] } };
+  assert.equal(listGroups(groups, SUBS)[0].count, 1);
+  assert.equal(listGroups(groups, {})[0].count, 0);
+  assert.deepEqual(channelRows({}, groups, { filter: "g" }), []);
+  assert.deepEqual(channelRows(SUBS, groups, { filter: "g" })[0].groupIds, ["g"]);
+  assert.deepEqual(groups.g.channelIds, ["a", "missing"]);
+});

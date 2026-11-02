@@ -288,8 +288,10 @@ A second alarm (`check-subscriptions`, 10 min, also sent as `SYNC_SUBSCRIPTIONS`
 dashboard opens) diffs only `subscriptions.list` against the cache, and `chrome.webRequest`
 observes youtube.com's own InnerTube `/youtubei/v1/subscription/{subscribe,unsubscribe}` POSTs
 (permission `webRequest` + host `https://www.youtube.com/*`, observe-only) to apply a click on
-youtube.com immediately — both add/drop single channels (unsubscribed ones are also pruned
-from groups) instead of a full sync (a full sync prunes groups the same way); pure logic in `subscriptionWatch.js` (`node --test
+youtube.com immediately — both add/drop single channels instead of a full sync. In the extension, unsubscribe
+and missing API entries remove only cached subscription/video state; saved group membership
+survives, restoring the groups on resubscription. Group counts include only current subscriptions.
+Only manual group editing removes membership; pure logic in `subscriptionWatch.js` (`node --test
 subscriptionWatch.test.mjs`). Every cache rewrite goes through `exclusive()`, a promise queue,
 so a quick update can't be overwritten by a concurrent `refreshAll`.
 `storage.js` wraps `chrome.storage`. `logger.js` (ESM) is a 200-entry ring buffer in

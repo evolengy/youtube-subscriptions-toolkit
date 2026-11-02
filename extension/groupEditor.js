@@ -4,14 +4,17 @@
 (function (root) {
   const DEFAULT_GROUP_ICON = "📁";
 
-  // [{ groupId, name, icon, count }] sorted by name.
-  function listGroups(groups) {
+  // [{ groupId, name, icon, count }] sorted by name. When subscriptions are
+  // supplied, dormant memberships are retained but excluded from the count.
+  function listGroups(groups, subscriptions) {
     return Object.entries(groups || {})
       .map(([groupId, group]) => ({
         groupId,
         name: group.name ?? groupId,
         icon: group.icon || DEFAULT_GROUP_ICON,
-        count: (group.channelIds || []).length,
+        count: (group.channelIds || []).filter((id) =>
+          subscriptions === undefined || Object.hasOwn(subscriptions, id)
+        ).length,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }

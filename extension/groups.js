@@ -67,7 +67,7 @@ function renderRail() {
 
   const list = el("railGroups");
   list.replaceChildren();
-  for (const group of listGroups(groups)) {
+  for (const group of listGroups(groups, subscriptions)) {
     list.appendChild(buildGroupRow(group));
   }
 }
@@ -218,7 +218,7 @@ function buildChannelRow(row) {
 
   const chips = document.createElement("div");
   chips.className = "group-chips";
-  for (const group of listGroups(groups)) {
+  for (const group of listGroups(groups, subscriptions)) {
     const isMember = row.groupIds.includes(group.groupId);
     const chip = document.createElement("button");
     chip.className = "group-chip" + (isMember ? " active" : "");

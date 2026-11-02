@@ -63,7 +63,7 @@ test("diffSubscriptions finds added and removed channels", () => {
   assert.deepEqual(diffSubscriptions({}, []), { added: [], removed: [] });
 });
 
-test("removeChannels drops from caches and groups, flags group change", () => {
+test("removeChannels drops caches but preserves membership for resubscription", () => {
   const input = {
     subscriptionsCache: { a: {}, b: {} },
     videosCache: { a: [1], b: [2] },
@@ -75,9 +75,9 @@ test("removeChannels drops from caches and groups, flags group change", () => {
   const out = removeChannels(input, ["a"]);
   assert.deepEqual(out.subscriptionsCache, { b: {} });
   assert.deepEqual(out.videosCache, { b: [2] });
-  assert.deepEqual(out.groups.g1, { name: "G1", icon: "🎮", channelIds: ["b"] });
+  assert.deepEqual(out.groups.g1, input.groups.g1);
   assert.equal(out.groups.g2, input.groups.g2); // untouched group kept as-is
-  assert.equal(out.groupsChanged, true);
+  assert.equal(out.groupsChanged, false);
   assert.deepEqual(input.subscriptionsCache, { a: {}, b: {} }); // input not mutated
 });
 
@@ -87,4 +87,15 @@ test("removeChannels reports no group change when none held the channel", () => 
     ["a"]
   );
   assert.equal(out.groupsChanged, false);
+});
+
+test("a temporarily missing subscription returns to its previous groups", () => {
+  const groups = { g: { name: "Saved", channelIds: [UC1, UC2] } };
+  const cache = { [UC1]: { title: "One" }, [UC2]: { title: "Two" } };
+  const fresh = [{ channelId: UC2 }];
+  const { removed } = diffSubscriptions(cache, fresh);
+  const next = removeChannels({ subscriptionsCache: cache, videosCache: {}, groups }, removed);
+  const returning = diffSubscriptions(next.subscriptionsCache, [...fresh, { channelId: UC1 }]);
+  assert.deepEqual(returning.added, [{ channelId: UC1 }]);
+  assert.deepEqual(next.groups.g.channelIds, [UC1, UC2]);
 });
